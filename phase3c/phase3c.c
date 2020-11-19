@@ -29,9 +29,39 @@ void debug3(char *fmt, ...)
     }
 }
 
+typedef struct Frame
+{
+    PID pid;
+    int free;
+} Frame;
+
+typedef struct Pager{
+    PID pid;
+    SID sid;
+    int quit;
+}Pager;
+
+static Pager pagersList[P3_MAX_PAGERS];
+static int initialized;
+
+static Frame *framesList;
+static SID frameSem;
+static SID vmStatsSem;
+
 // This allows the skeleton code to compile. Remove it in your solution.
 
 #define UNUSED __attribute__((unused))
+
+static void IllegalMessage(int n, void *arg){
+    P1_Quit(1024);
+}
+
+static void checkInKernelMode() {
+    if(!(USLOSS_PsrGet() & USLOSS_PSR_CURRENT_MODE)){
+        USLOSS_IntVec[USLOSS_ILLEGAL_INT] = IllegalMessage;
+        USLOSS_IllegalInstruction();
+    }
+}
 
 /*
  *----------------------------------------------------------------------
@@ -50,9 +80,39 @@ int
 P3FrameInit(int pages, int frames)
 {
     int result = P1_SUCCESS;
+    checkInKernelMode();
 
-    // initialize the frame data structures, e.g. the pool of free frames
-    // set P3_vmStats.freeFrames
+    if(framesList == NULL){
+        // creating semaphore for frames
+        char frameSemName[P1_MAXNAME];
+        strcpy(frameSemName,"frameSem");
+        assert(P1_SemCreate(frameSemName, 1, &frameSem) == P1_SUCCESS);
+        assert(P1_P(frameSemaphore) == P1_SUCCESS);
+
+        // initialize the frame data structures, e.g. the pool of free frames
+        framesList = malloc(sizeof(Frame) * frames);
+        int i;
+        for(i = 0; i < frames; i++){
+            framesList[i].free = TRUE;
+            framesList[i].pid = -1;
+        }
+        assert(P1_V(frameSemaphore) == P1_SUCCESS);
+
+        // creating semaphore for vmStats
+        char vmStatsName[P1_MAXNAME];
+        strcpy(vmStatsName, "vmStatsSem");
+        assert(P1_SemCreate(vmStatsName, 1, &vmStatsSem) == P1_SUCCESS);
+        assert(P1_P(vmStatsSem) == P1_SUCCESS);
+
+        // set P3_vmStats.freeFrames
+        P3_vmStats.freeFrames = frames;
+        P3_vmStats.frames = frames;
+
+        assert(P1_V(vmStatsSem) == P1_SUCCESS);
+
+    }else[
+        result = P3_ALREADY_INITIALIZED;
+    ]
 
     return result;
 }
@@ -73,8 +133,20 @@ int
 P3FrameShutdown(void)
 {
     int result = P1_SUCCESS;
+    checkInKernelMode();
 
-    // clean things up
+    if(framesList == NULL){
+        result = P3_NOT_INITIALIZED;
+    }else{
+        // free frameList
+        assert(P1_P(frameSem) == P1_SUCCESS);
+        free(framesList);
+        framesList = NULL;
+        // Free Semaphores for frame and vmStats
+        assert(P1_V(frameSem) == P1_SUCCESS);
+        assert(P1_SemFree(frameSem) == P1_SUCCESS);
+        assert(P1_SemFree(vmStatsSem) == P1_SUCCESS);
+    }
 
     return result;
 }
@@ -196,6 +268,8 @@ FaultHandler(int type, void *arg)
 }
 
 
+
+
 /*
  *----------------------------------------------------------------------
  *
@@ -217,8 +291,27 @@ P3PagerInit(int pages, int frames, int pagers)
 
     USLOSS_IntVec[USLOSS_MMU_INT] = FaultHandler;
 
-    // initialize the pager data structures
-    // fork off the pagers and wait for them to start running
+
+    if(initialized){
+        result = P3_ALREADY_INITIALIZED;
+    }else if(pagers <= 0 || pagers > P3_MAX_PAGERS){
+        result = P3_INVALID_NUM_PAGERS;
+    }else{
+        // initialize the pager data structures
+        int i;
+        for(i = 0; i < P3_MAX_PAGERS; i++){
+            pagersList[i].pid = -1;
+            pagersList[i].sid = -1;
+            pagersList[i].quit = 0;
+        }
+
+        // fork off the pagers and wait for them to start running
+        // for(i = 0; i < pagers; i++){
+        //     char name[P1_MAXNAME + 1];
+        //     assert()
+        // }
+    }
+
 
     return result;
 }
@@ -240,9 +333,21 @@ int
 P3PagerShutdown(void)
 {
     int result = P1_SUCCESS;
+    if(!initialized){
+        result = P3_NOT_INITIALIZED;
+    }else{
+        int i;
+        // cause the pagers to quit
+        for(i = 0; i < P3_MAX_PAGERS; i++){
+            if(pagersList[i].quit != -1){
+                // setting the pagerList[i] to quit
+                pagersList[i].quit = 1;
+            }
+        }
 
-    // cause the pagers to quit
-    // clean up the pager data structures
+        // clean up the pager data structures
+
+    }
 
     return result;
 }
