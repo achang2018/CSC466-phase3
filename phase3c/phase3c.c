@@ -35,15 +35,16 @@ typedef struct Frame
     int free;
 } Frame;
 
-typedef struct Pager{
+typedef struct PagerStruct{
     PID pid;
     SID sid;
     int quit;
-}Pager;
+}PagerStruct;
 
-static Pager pagersList[P3_MAX_PAGERS];
+static int Pager(void *arg);
+
+static PagerStruct pagersList[P3_MAX_PAGERS];
 static int initialized;
-
 static Frame *framesList;
 static SID frameSem;
 static SID vmStatsSem;
@@ -87,7 +88,7 @@ P3FrameInit(int pages, int frames)
         char frameSemName[P1_MAXNAME];
         strcpy(frameSemName,"frameSem");
         assert(P1_SemCreate(frameSemName, 1, &frameSem) == P1_SUCCESS);
-        assert(P1_P(frameSemaphore) == P1_SUCCESS);
+        assert(P1_P(frameSem) == P1_SUCCESS);
 
         // initialize the frame data structures, e.g. the pool of free frames
         framesList = malloc(sizeof(Frame) * frames);
@@ -96,7 +97,7 @@ P3FrameInit(int pages, int frames)
             framesList[i].free = TRUE;
             framesList[i].pid = -1;
         }
-        assert(P1_V(frameSemaphore) == P1_SUCCESS);
+        assert(P1_V(frameSem) == P1_SUCCESS);
 
         // creating semaphore for vmStats
         char vmStatsName[P1_MAXNAME];
@@ -110,9 +111,10 @@ P3FrameInit(int pages, int frames)
 
         assert(P1_V(vmStatsSem) == P1_SUCCESS);
 
-    }else[
+    }else{
         result = P3_ALREADY_INITIALIZED;
-    ]
+    }
+    
 
     return result;
 }
@@ -309,14 +311,14 @@ P3PagerInit(int pages, int frames, int pagers)
         for(i = 0; i < pagers; i++){
             char name[P1_MAXNAME + 1];
             snprintf(name,sizeof(name),"%s%d","pager",i);
-            assert(P1_SemCreate(name,0,&pagerList[i].sid) == P1_SUCCESS);
+            assert(P1_SemCreate(name,0,&pagersList[i].sid) == P1_SUCCESS);
 
             int pid;
             assert(P1_Fork(name,Pager,&i,USLOSS_MIN_STACK,P3_PAGER_PRIORITY,1,&pid) == P1_SUCCESS);
-            pagerList[i].pid = pid;
+            pagersList[i].pid = pid;
 
-            assert(P1_P(pagerList[i].sid) == P1_SUCCESS);
-            assert(P1_V(pagerList[i].sid) == P1_SUCCESS);
+            assert(P1_P(pagersList[i].sid) == P1_SUCCESS);
+            assert(P1_V(pagersList[i].sid) == P1_SUCCESS);
         }
     }
 
@@ -396,11 +398,11 @@ Pager(void *arg)
     **********************************/
     int pagerCount = *((int *)arg);
     //  notify P3PagerInit that we are running
-    assert(P1_V(pagerList[pagerCount].sid) == P1_SUCCESS);
+    assert(P1_V(pagersList[pagerCount].sid) == P1_SUCCESS);
 
     // loop until P3PagerShutdown is called
-    while(pagerList[pagerCount].quit != 1){
-        assert(P1_P(faultList.faultComm))
+    while(pagersList[pagerCount].quit != 1){
+        // assert(P1_P(faultList.faultComm))
     }
 
 
