@@ -288,7 +288,7 @@ int
 P3PagerInit(int pages, int frames, int pagers)
 {
     int     result = P1_SUCCESS;
-
+    checkInKernelMode();
     USLOSS_IntVec[USLOSS_MMU_INT] = FaultHandler;
 
 
@@ -306,10 +306,18 @@ P3PagerInit(int pages, int frames, int pagers)
         }
 
         // fork off the pagers and wait for them to start running
-        // for(i = 0; i < pagers; i++){
-        //     char name[P1_MAXNAME + 1];
-        //     assert()
-        // }
+        for(i = 0; i < pagers; i++){
+            char name[P1_MAXNAME + 1];
+            snprintf(name,sizeof(name),"%s%d","pager",i);
+            assert(P1_SemCreate(name,0,&pagerList[i].sid) == P1_SUCCESS);
+
+            int pid;
+            assert(P1_Fork(name,Pager,&i,USLOSS_MIN_STACK,P3_PAGER_PRIORITY,1,&pid) == P1_SUCCESS);
+            pagerList[i].pid = pid;
+
+            assert(P1_P(pagerList[i].sid) == P1_SUCCESS);
+            assert(P1_V(pagerList[i].sid) == P1_SUCCESS);
+        }
     }
 
 
@@ -386,6 +394,16 @@ Pager(void *arg)
         unblock faulting process
 
     **********************************/
+    int pagerCount = *((int *)arg);
+    //  notify P3PagerInit that we are running
+    assert(P1_V(pagerList[pagerCount].sid) == P1_SUCCESS);
+
+    // loop until P3PagerShutdown is called
+    while(pagerList[pagerCount].quit != 1){
+        assert(P1_P(faultList.faultComm))
+    }
+
+
 
     return 0;
 }
