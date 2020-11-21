@@ -203,6 +203,9 @@ int
 P3FrameMap(int frame, void **ptr) 
 {
     USLOSS_PTE *table;
+    if (frame < 0 || frame >= P3_vmStats.frames || framesList[frame].free == FALSE) {
+        return P3_INVALID_FRAME;
+    }
 
     // get the page table for the process (P3PageTableGet)
     int ret = P3PageTableGet(P1_GetPid(), &table);
@@ -242,7 +245,9 @@ int
 P3FrameUnmap(int frame) 
 {
     USLOSS_PTE *table;
-
+    if (frame < 0 || frame >= P3_vmStats.frames || framesList[frame].free == TRUE) {
+        return P3_INVALID_FRAME;
+    }
     // get the process's page table (P3PageTableGet)
     int ret = P3PageTableGet(P1_GetPid(), &table);
     if (ret != P1_SUCCESS || table == NULL) {
@@ -251,15 +256,17 @@ P3FrameUnmap(int frame)
     // verify that the process mapped the frame
     while (table != NULL) {
         if (table->incore == 1 && table->frame == frame) {
+            // update page's PTE to remove the mapping
             table->incore = 0;
             table->frame = -1;
             return P1_SUCCESS;
         }
         table++;
     }
-    return P3_FRAME_NOT_MAPPED;
-    // update page's PTE to remove the mapping
     // update the page table in the MMU (USLOSS_MmuSetPageTable)
+    ret = USLOSS_MmuSetPageTable(table);
+    assert(ret == USLOSS_MMU_OK);
+    return P3_FRAME_NOT_MAPPED;
 }
 
 // information about a fault. Add to this as necessary.
