@@ -1,0 +1,38 @@
+Startup
+P4_Startup starting.
+Startup8
+Writer (8) starting.
+Writing page 0.
+PAGE FAULT!!! PID 8 page 0
+Writing page 1.
+PAGE FAULT!!! PID 8 page 1
+Writing page 2.
+PAGE FAULT!!! PID 8 page 2
+Writing page 3.
+PAGE FAULT!!! PID 8 page 3
+Writer done.
+Reader (7) starting.
+Reading page 0.
+PAGE FAULT!!! PID 7 page 0
+Reading page 1.
+PAGE FAULT!!! PID 7 page 1
+Reading page 2.
+PAGE FAULT!!! PID 7 page 2
+Reading page 3.
+PAGE FAULT!!! PID 7 page 3
+Reader done.
+P3_PrintStats:
+	pages:		4
+	frames:		4
+	blocks:		0
+	freeFrames:	0
+	freeBlocks:	0
+	faults:		0
+	new:		0
+	pageIns:	0
+	pageOuts:	0
+	replaced:	0
+P4_Startup done.
+Sentinel quitting.
+No runnable processes, halting.
+TEST PASSED.

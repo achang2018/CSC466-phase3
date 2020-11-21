@@ -1,0 +1,449 @@
+P4_Startup starting.
+Child (7) starting.
+PAGE FAULT!!! PID 7 page 0
+PAGE FAULT!!! PID 7 page 1
+PAGE FAULT!!! PID 7 page 2
+PAGE FAULT!!! PID 7 page 3
+Child (7) done.
+Child (8) starting.
+PAGE FAULT!!! PID 8 page 0
+PAGE FAULT!!! PID 8 page 1
+PAGE FAULT!!! PID 8 page 2
+PAGE FAULT!!! PID 8 page 3
+Child (8) done.
+Child (9) starting.
+PAGE FAULT!!! PID 9 page 0
+PAGE FAULT!!! PID 9 page 1
+PAGE FAULT!!! PID 9 page 2
+PAGE FAULT!!! PID 9 page 3
+Child (9) done.
+Child (10) starting.
+PAGE FAULT!!! PID 10 page 0
+PAGE FAULT!!! PID 10 page 1
+PAGE FAULT!!! PID 10 page 2
+PAGE FAULT!!! PID 10 page 3
+Child (10) done.
+Child (7) starting.
+PAGE FAULT!!! PID 7 page 0
+PAGE FAULT!!! PID 7 page 1
+PAGE FAULT!!! PID 7 page 2
+PAGE FAULT!!! PID 7 page 3
+Child (7) done.
+Child (8) starting.
+PAGE FAULT!!! PID 8 page 0
+PAGE FAULT!!! PID 8 page 1
+PAGE FAULT!!! PID 8 page 2
+PAGE FAULT!!! PID 8 page 3
+Child (8) done.
+Child (9) starting.
+PAGE FAULT!!! PID 9 page 0
+PAGE FAULT!!! PID 9 page 1
+PAGE FAULT!!! PID 9 page 2
+PAGE FAULT!!! PID 9 page 3
+Child (9) done.
+Child (10) starting.
+PAGE FAULT!!! PID 10 page 0
+PAGE FAULT!!! PID 10 page 1
+PAGE FAULT!!! PID 10 page 2
+PAGE FAULT!!! PID 10 page 3
+Child (10) done.
+Child (7) starting.
+PAGE FAULT!!! PID 7 page 0
+PAGE FAULT!!! PID 7 page 1
+PAGE FAULT!!! PID 7 page 2
+PAGE FAULT!!! PID 7 page 3
+Child (7) done.
+Child (8) starting.
+PAGE FAULT!!! PID 8 page 0
+PAGE FAULT!!! PID 8 page 1
+PAGE FAULT!!! PID 8 page 2
+PAGE FAULT!!! PID 8 page 3
+Child (8) done.
+Child (9) starting.
+PAGE FAULT!!! PID 9 page 0
+PAGE FAULT!!! PID 9 page 1
+PAGE FAULT!!! PID 9 page 2
+PAGE FAULT!!! PID 9 page 3
+Child (9) done.
+Child (10) starting.
+PAGE FAULT!!! PID 10 page 0
+PAGE FAULT!!! PID 10 page 1
+PAGE FAULT!!! PID 10 page 2
+PAGE FAULT!!! PID 10 page 3
+Child (10) done.
+Child (7) starting.
+PAGE FAULT!!! PID 7 page 0
+PAGE FAULT!!! PID 7 page 1
+PAGE FAULT!!! PID 7 page 2
+PAGE FAULT!!! PID 7 page 3
+Child (7) done.
+Child (8) starting.
+PAGE FAULT!!! PID 8 page 0
+PAGE FAULT!!! PID 8 page 1
+PAGE FAULT!!! PID 8 page 2
+PAGE FAULT!!! PID 8 page 3
+Child (8) done.
+Child (9) starting.
+PAGE FAULT!!! PID 9 page 0
+PAGE FAULT!!! PID 9 page 1
+PAGE FAULT!!! PID 9 page 2
+PAGE FAULT!!! PID 9 page 3
+Child (9) done.
+Child (10) starting.
+PAGE FAULT!!! PID 10 page 0
+PAGE FAULT!!! PID 10 page 1
+PAGE FAULT!!! PID 10 page 2
+PAGE FAULT!!! PID 10 page 3
+Child (10) done.
+Child (7) starting.
+PAGE FAULT!!! PID 7 page 0
+PAGE FAULT!!! PID 7 page 1
+PAGE FAULT!!! PID 7 page 2
+PAGE FAULT!!! PID 7 page 3
+Child (7) done.
+Child (8) starting.
+PAGE FAULT!!! PID 8 page 0
+PAGE FAULT!!! PID 8 page 1
+PAGE FAULT!!! PID 8 page 2
+PAGE FAULT!!! PID 8 page 3
+Child (8) done.
+Child (9) starting.
+PAGE FAULT!!! PID 9 page 0
+PAGE FAULT!!! PID 9 page 1
+PAGE FAULT!!! PID 9 page 2
+PAGE FAULT!!! PID 9 page 3
+Child (9) done.
+Child (10) starting.
+PAGE FAULT!!! PID 10 page 0
+PAGE FAULT!!! PID 10 page 1
+PAGE FAULT!!! PID 10 page 2
+PAGE FAULT!!! PID 10 page 3
+Child (10) done.
+Child (7) starting.
+PAGE FAULT!!! PID 7 page 0
+PAGE FAULT!!! PID 7 page 1
+PAGE FAULT!!! PID 7 page 2
+PAGE FAULT!!! PID 7 page 3
+Child (7) done.
+Child (8) starting.
+PAGE FAULT!!! PID 8 page 0
+PAGE FAULT!!! PID 8 page 1
+PAGE FAULT!!! PID 8 page 2
+PAGE FAULT!!! PID 8 page 3
+Child (8) done.
+Child (9) starting.
+PAGE FAULT!!! PID 9 page 0
+PAGE FAULT!!! PID 9 page 1
+PAGE FAULT!!! PID 9 page 2
+PAGE FAULT!!! PID 9 page 3
+Child (9) done.
+Child (10) starting.
+PAGE FAULT!!! PID 10 page 0
+PAGE FAULT!!! PID 10 page 1
+PAGE FAULT!!! PID 10 page 2
+PAGE FAULT!!! PID 10 page 3
+Child (10) done.
+Child (7) starting.
+PAGE FAULT!!! PID 7 page 0
+PAGE FAULT!!! PID 7 page 1
+PAGE FAULT!!! PID 7 page 2
+PAGE FAULT!!! PID 7 page 3
+Child (7) done.
+Child (8) starting.
+PAGE FAULT!!! PID 8 page 0
+PAGE FAULT!!! PID 8 page 1
+PAGE FAULT!!! PID 8 page 2
+PAGE FAULT!!! PID 8 page 3
+Child (8) done.
+Child (9) starting.
+PAGE FAULT!!! PID 9 page 0
+PAGE FAULT!!! PID 9 page 1
+PAGE FAULT!!! PID 9 page 2
+PAGE FAULT!!! PID 9 page 3
+Child (9) done.
+Child (10) starting.
+PAGE FAULT!!! PID 10 page 0
+PAGE FAULT!!! PID 10 page 1
+PAGE FAULT!!! PID 10 page 2
+PAGE FAULT!!! PID 10 page 3
+Child (10) done.
+Child (7) starting.
+PAGE FAULT!!! PID 7 page 0
+PAGE FAULT!!! PID 7 page 1
+PAGE FAULT!!! PID 7 page 2
+PAGE FAULT!!! PID 7 page 3
+Child (7) done.
+Child (8) starting.
+PAGE FAULT!!! PID 8 page 0
+PAGE FAULT!!! PID 8 page 1
+PAGE FAULT!!! PID 8 page 2
+PAGE FAULT!!! PID 8 page 3
+Child (8) done.
+Child (9) starting.
+PAGE FAULT!!! PID 9 page 0
+PAGE FAULT!!! PID 9 page 1
+PAGE FAULT!!! PID 9 page 2
+PAGE FAULT!!! PID 9 page 3
+Child (9) done.
+Child (10) starting.
+PAGE FAULT!!! PID 10 page 0
+PAGE FAULT!!! PID 10 page 1
+PAGE FAULT!!! PID 10 page 2
+PAGE FAULT!!! PID 10 page 3
+Child (10) done.
+Child (7) starting.
+PAGE FAULT!!! PID 7 page 0
+PAGE FAULT!!! PID 7 page 1
+PAGE FAULT!!! PID 7 page 2
+PAGE FAULT!!! PID 7 page 3
+Child (7) done.
+Child (8) starting.
+PAGE FAULT!!! PID 8 page 0
+PAGE FAULT!!! PID 8 page 1
+PAGE FAULT!!! PID 8 page 2
+PAGE FAULT!!! PID 8 page 3
+Child (8) done.
+Child (9) starting.
+PAGE FAULT!!! PID 9 page 0
+PAGE FAULT!!! PID 9 page 1
+PAGE FAULT!!! PID 9 page 2
+PAGE FAULT!!! PID 9 page 3
+Child (9) done.
+Child (10) starting.
+PAGE FAULT!!! PID 10 page 0
+PAGE FAULT!!! PID 10 page 1
+PAGE FAULT!!! PID 10 page 2
+PAGE FAULT!!! PID 10 page 3
+Child (10) done.
+Child (7) starting.
+PAGE FAULT!!! PID 7 page 0
+PAGE FAULT!!! PID 7 page 1
+PAGE FAULT!!! PID 7 page 2
+PAGE FAULT!!! PID 7 page 3
+Child (7) done.
+Child (8) starting.
+PAGE FAULT!!! PID 8 page 0
+PAGE FAULT!!! PID 8 page 1
+PAGE FAULT!!! PID 8 page 2
+PAGE FAULT!!! PID 8 page 3
+Child (8) done.
+Child (9) starting.
+PAGE FAULT!!! PID 9 page 0
+PAGE FAULT!!! PID 9 page 1
+PAGE FAULT!!! PID 9 page 2
+PAGE FAULT!!! PID 9 page 3
+Child (9) done.
+Child (10) starting.
+PAGE FAULT!!! PID 10 page 0
+PAGE FAULT!!! PID 10 page 1
+PAGE FAULT!!! PID 10 page 2
+PAGE FAULT!!! PID 10 page 3
+Child (10) done.
+Child (7) starting.
+PAGE FAULT!!! PID 7 page 0
+PAGE FAULT!!! PID 7 page 1
+PAGE FAULT!!! PID 7 page 2
+PAGE FAULT!!! PID 7 page 3
+Child (7) done.
+Child (8) starting.
+PAGE FAULT!!! PID 8 page 0
+PAGE FAULT!!! PID 8 page 1
+PAGE FAULT!!! PID 8 page 2
+PAGE FAULT!!! PID 8 page 3
+Child (8) done.
+Child (9) starting.
+PAGE FAULT!!! PID 9 page 0
+PAGE FAULT!!! PID 9 page 1
+PAGE FAULT!!! PID 9 page 2
+PAGE FAULT!!! PID 9 page 3
+Child (9) done.
+Child (10) starting.
+PAGE FAULT!!! PID 10 page 0
+PAGE FAULT!!! PID 10 page 1
+PAGE FAULT!!! PID 10 page 2
+PAGE FAULT!!! PID 10 page 3
+Child (10) done.
+Child (7) starting.
+PAGE FAULT!!! PID 7 page 0
+PAGE FAULT!!! PID 7 page 1
+PAGE FAULT!!! PID 7 page 2
+PAGE FAULT!!! PID 7 page 3
+Child (7) done.
+Child (8) starting.
+PAGE FAULT!!! PID 8 page 0
+PAGE FAULT!!! PID 8 page 1
+PAGE FAULT!!! PID 8 page 2
+PAGE FAULT!!! PID 8 page 3
+Child (8) done.
+Child (9) starting.
+PAGE FAULT!!! PID 9 page 0
+PAGE FAULT!!! PID 9 page 1
+PAGE FAULT!!! PID 9 page 2
+PAGE FAULT!!! PID 9 page 3
+Child (9) done.
+Child (10) starting.
+PAGE FAULT!!! PID 10 page 0
+PAGE FAULT!!! PID 10 page 1
+PAGE FAULT!!! PID 10 page 2
+PAGE FAULT!!! PID 10 page 3
+Child (10) done.
+Child (7) starting.
+PAGE FAULT!!! PID 7 page 0
+PAGE FAULT!!! PID 7 page 1
+PAGE FAULT!!! PID 7 page 2
+PAGE FAULT!!! PID 7 page 3
+Child (7) done.
+Child (8) starting.
+PAGE FAULT!!! PID 8 page 0
+PAGE FAULT!!! PID 8 page 1
+PAGE FAULT!!! PID 8 page 2
+PAGE FAULT!!! PID 8 page 3
+Child (8) done.
+Child (9) starting.
+PAGE FAULT!!! PID 9 page 0
+PAGE FAULT!!! PID 9 page 1
+PAGE FAULT!!! PID 9 page 2
+PAGE FAULT!!! PID 9 page 3
+Child (9) done.
+Child (10) starting.
+PAGE FAULT!!! PID 10 page 0
+PAGE FAULT!!! PID 10 page 1
+PAGE FAULT!!! PID 10 page 2
+PAGE FAULT!!! PID 10 page 3
+Child (10) done.
+Child (7) starting.
+PAGE FAULT!!! PID 7 page 0
+PAGE FAULT!!! PID 7 page 1
+PAGE FAULT!!! PID 7 page 2
+PAGE FAULT!!! PID 7 page 3
+Child (7) done.
+Child (8) starting.
+PAGE FAULT!!! PID 8 page 0
+PAGE FAULT!!! PID 8 page 1
+PAGE FAULT!!! PID 8 page 2
+PAGE FAULT!!! PID 8 page 3
+Child (8) done.
+Child (9) starting.
+PAGE FAULT!!! PID 9 page 0
+PAGE FAULT!!! PID 9 page 1
+PAGE FAULT!!! PID 9 page 2
+PAGE FAULT!!! PID 9 page 3
+Child (9) done.
+Child (10) starting.
+PAGE FAULT!!! PID 10 page 0
+PAGE FAULT!!! PID 10 page 1
+PAGE FAULT!!! PID 10 page 2
+PAGE FAULT!!! PID 10 page 3
+Child (10) done.
+Child (7) starting.
+PAGE FAULT!!! PID 7 page 0
+PAGE FAULT!!! PID 7 page 1
+PAGE FAULT!!! PID 7 page 2
+PAGE FAULT!!! PID 7 page 3
+Child (7) done.
+Child (8) starting.
+PAGE FAULT!!! PID 8 page 0
+PAGE FAULT!!! PID 8 page 1
+PAGE FAULT!!! PID 8 page 2
+PAGE FAULT!!! PID 8 page 3
+Child (8) done.
+Child (9) starting.
+PAGE FAULT!!! PID 9 page 0
+PAGE FAULT!!! PID 9 page 1
+PAGE FAULT!!! PID 9 page 2
+PAGE FAULT!!! PID 9 page 3
+Child (9) done.
+Child (10) starting.
+PAGE FAULT!!! PID 10 page 0
+PAGE FAULT!!! PID 10 page 1
+PAGE FAULT!!! PID 10 page 2
+PAGE FAULT!!! PID 10 page 3
+Child (10) done.
+Child (7) starting.
+PAGE FAULT!!! PID 7 page 0
+PAGE FAULT!!! PID 7 page 1
+PAGE FAULT!!! PID 7 page 2
+PAGE FAULT!!! PID 7 page 3
+Child (7) done.
+Child (8) starting.
+PAGE FAULT!!! PID 8 page 0
+PAGE FAULT!!! PID 8 page 1
+PAGE FAULT!!! PID 8 page 2
+PAGE FAULT!!! PID 8 page 3
+Child (8) done.
+Child (9) starting.
+PAGE FAULT!!! PID 9 page 0
+PAGE FAULT!!! PID 9 page 1
+PAGE FAULT!!! PID 9 page 2
+PAGE FAULT!!! PID 9 page 3
+Child (9) done.
+Child (10) starting.
+PAGE FAULT!!! PID 10 page 0
+PAGE FAULT!!! PID 10 page 1
+PAGE FAULT!!! PID 10 page 2
+PAGE FAULT!!! PID 10 page 3
+Child (10) done.
+Child (7) starting.
+PAGE FAULT!!! PID 7 page 0
+PAGE FAULT!!! PID 7 page 1
+PAGE FAULT!!! PID 7 page 2
+PAGE FAULT!!! PID 7 page 3
+Child (7) done.
+Child (8) starting.
+PAGE FAULT!!! PID 8 page 0
+PAGE FAULT!!! PID 8 page 1
+PAGE FAULT!!! PID 8 page 2
+PAGE FAULT!!! PID 8 page 3
+Child (8) done.
+Child (9) starting.
+PAGE FAULT!!! PID 9 page 0
+PAGE FAULT!!! PID 9 page 1
+PAGE FAULT!!! PID 9 page 2
+PAGE FAULT!!! PID 9 page 3
+Child (9) done.
+Child (10) starting.
+PAGE FAULT!!! PID 10 page 0
+PAGE FAULT!!! PID 10 page 1
+PAGE FAULT!!! PID 10 page 2
+PAGE FAULT!!! PID 10 page 3
+Child (10) done.
+Child (7) starting.
+PAGE FAULT!!! PID 7 page 0
+PAGE FAULT!!! PID 7 page 1
+PAGE FAULT!!! PID 7 page 2
+PAGE FAULT!!! PID 7 page 3
+Child (7) done.
+Child (8) starting.
+PAGE FAULT!!! PID 8 page 0
+PAGE FAULT!!! PID 8 page 1
+PAGE FAULT!!! PID 8 page 2
+PAGE FAULT!!! PID 8 page 3
+Child (8) done.
+Child (9) starting.
+PAGE FAULT!!! PID 9 page 0
+PAGE FAULT!!! PID 9 page 1
+PAGE FAULT!!! PID 9 page 2
+PAGE FAULT!!! PID 9 page 3
+Child (9) done.
+Child (10) starting.
+PAGE FAULT!!! PID 10 page 0
+PAGE FAULT!!! PID 10 page 1
+PAGE FAULT!!! PID 10 page 2
+PAGE FAULT!!! PID 10 page 3
+Child (10) done.
+Child (7) starting.
+PAGE FAULT!!! PID 7 page 0
+PAGE FAULT!!! PID 7 page 1
+PAGE FAULT!!! PID 7 page 2
+PAGE FAULT!!! PID 7 page 3
+Child (7) done.
+Child (8) starting.
+PAGE FAULT!!! PID 8 page 0
+PAGE FAULT!!! PID 8 page 1
+PAGE FAULT!!! PID 8 page 2
+PAGE FAULT!!! PID 8 page 3
+Child (8) done.
+Child (9) starting.
+PAGE FAULT!!! PID 9 page 0
+PAGE FAULT!!! PID 9 page 1
+PAGE FAULT!!! PID 9 page 2
