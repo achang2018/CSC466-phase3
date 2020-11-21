@@ -29,7 +29,7 @@ static int  pageSize;
 #ifdef DEBUG
 int debugging = 1;
 #else
-int debugging = 0;
+int debugging = 1;
 #endif /* DEBUG */
 
 
@@ -100,19 +100,22 @@ P4_Startup(void *arg)
     PID     pid;
     PID     child;
     SID     sid;
-
+    // USLOSS_Console("Startup2\n");
     Debug("P4_Startup starting.\n");
+    // USLOSS_Console("Startup3\n");
     rc = Sys_VmInit(PAGES, PAGES, PAGES, 0, (void **) &vmRegion);
+    // USLOSS_Console("Startup4\n");
     TEST(rc, P1_SUCCESS);
+    // USLOSS_Console("Startup5\n");
 
     rc = Sys_SemCreate("ready", 0, &sid);
     assert(rc == P1_SUCCESS);
-
+    // USLOSS_Console("Startup6\n");
     pageSize = USLOSS_MmuPageSize();
-
+    // USLOSS_Console("Startup7\n");
     rc = Sys_Spawn("Reader", Reader, (void *) sid, USLOSS_MIN_STACK * 2, 2, &pid);
     assert(rc == P1_SUCCESS);
-
+USLOSS_Console("Startup8\n");
     rc = Sys_Spawn("Writer", Writer, (void *) sid, USLOSS_MIN_STACK * 2, 2, &pid);
     assert(rc == P1_SUCCESS);
 
@@ -130,6 +133,7 @@ P4_Startup(void *arg)
 
 
 void test_setup(int argc, char **argv) {
+    USLOSS_Console("Startup\n");
 }
 
 void test_cleanup(int argc, char **argv) {

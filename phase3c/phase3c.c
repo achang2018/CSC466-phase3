@@ -97,10 +97,18 @@ int
 P3FrameFreeAll(int pid)
 {
     int result = P1_SUCCESS;
-
+    USLOSS_PTE *table;
     // free all frames in use by the process (P3PageTableGet)
-
-    return result;
+    P3PageTableGet(P1_GetPid(), &table);
+    if (ret != P1_SUCESS || table == NULL) {
+        return P3_NOT_INITIALIZED;
+    }
+    while (table != NULL) {
+        table.incore = 0;
+        table.frame = -1;
+        table++;
+    }
+    return P1_SUCCESS;
 }
 
 /*
@@ -122,9 +130,24 @@ int
 P3FrameMap(int frame, void **ptr) 
 {
     int result = P1_SUCCESS;
+    USLOSS_PTE *table;
 
     // get the page table for the process (P3PageTableGet)
+    int ret = P3PageTableGet(P1_GetPid(), &table);
+    if (ret != P1_SUCESS || table == NULL) {
+        return P3_NOT_INITIALIZED;
+    }
     // find an unused page
+    while (table != NULL) {
+        if (table.incore == 0) {
+            table.frame = frame;
+            table.incore = 1;
+            *ptr = table;
+            return P1_SUCCESS;
+        }
+        table++;
+    }
+    return P3_OUT_OF_PAGES;
     // update the page's PTE to map the page to the frame
     // update the page table in the MMU (USLOSS_MmuSetPageTable)
 
@@ -149,13 +172,25 @@ int
 P3FrameUnmap(int frame) 
 {
     int result = P1_SUCCESS;
+    USLOSS_PTE *table;
 
     // get the process's page table (P3PageTableGet)
+    P3PageTableGet(P1_GetPid(), &table);
+    if (ret != P1_SUCESS || table == NULL) {
+        return P3_NOT_INITIALIZED;
+    }
     // verify that the process mapped the frame
+    while (table != NULL) {
+        if (table.incore == 1 && table.frame == frame) {
+            table.incore = 0;
+            table.frame = -1;
+            return P1_SUCCESS;
+        }
+        table++;
+    }
+    return P3_FRAME_NOT_MAPPED;
     // update page's PTE to remove the mapping
     // update the page table in the MMU (USLOSS_MmuSetPageTable)
-
-    return result;
 }
 
 // information about a fault. Add to this as necessary.
