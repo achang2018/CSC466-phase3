@@ -16,7 +16,7 @@
 #ifdef DEBUG
 int debugging3 = 1;
 #else
-int debugging3 = 0;
+int debugging3 = 1;
 #endif
 
 void debug3(char *fmt, ...)
@@ -44,6 +44,7 @@ typedef struct PagerStruct {
 static int Pager(void *arg);
 static PagerStruct pagersList[P3_MAX_PAGERS];
 static int initialized;
+static int numPages;
 
 static Frame *framesList;
 static SID frameSem;
@@ -83,8 +84,10 @@ P3FrameInit(int pages, int frames)
 {
     int result = P1_SUCCESS;
     checkInKernelMode();
-
-    if(framesList == NULL){
+    
+    if(framesList == NULL) {
+        // Storing the total number of pages
+        numPages = pages;
         // creating semaphore for frames
         char frameSemName[P1_MAXNAME];
         strcpy(frameSemName,"frameSem");
@@ -112,7 +115,7 @@ P3FrameInit(int pages, int frames)
 
         assert(P1_V(vmStatsSem) == P1_SUCCESS);
 
-    }else{
+    } else {
         result = P3_ALREADY_INITIALIZED;
     }
 
@@ -139,7 +142,7 @@ P3FrameShutdown(void)
 
     if(framesList == NULL){
         result = P3_NOT_INITIALIZED;
-    }else{
+    } else {
         // free frameList
         assert(P1_P(frameSem) == P1_SUCCESS);
         free(framesList);
@@ -171,16 +174,26 @@ int
 P3FrameFreeAll(int pid)
 {
     USLOSS_PTE *table;
+    USLOSS_Console("Freeing all frames of %d\n", pid);
     // free all frames in use by the process (P3PageTableGet)
-    int ret = P3PageTableGet(P1_GetPid(), &table);
+    int ret = P3PageTableGet(pid, &table);
     if (ret != P1_SUCCESS || table == NULL) {
         return P3_NOT_INITIALIZED;
     }
-    while (table != NULL) {
-        table->incore = 0;
-        table->frame = -1;
-        table++;
+    int i;
+    for (i =0; i<numPages; i++) {
+        if (table[i].incore == 1) {
+            framesList[table[i].frame].free = TRUE;
+            framesList[table[i].frame].pid = -1;
+            table[i].incore = 0;
+            table[i].frame = -1;
+            table[i].read = 0;
+            table[i].write = 0;
+        }
     }
+    P3_vmStats.freeFrames = P3_vmStats.frames;
+    ret = USLOSS_MmuSetPageTable(table);
+    assert(ret == USLOSS_MMU_OK);
     return P1_SUCCESS;
 }
 
@@ -202,6 +215,7 @@ P3FrameFreeAll(int pid)
 int
 P3FrameMap(int frame, void **ptr) 
 {
+    USLOSS_Console("Mapping Frame %d\n", frame);
     USLOSS_PTE *table;
     if (frame < 0 || frame >= P3_vmStats.frames || framesList[frame].free == FALSE) {
         return P3_INVALID_FRAME;
@@ -213,14 +227,22 @@ P3FrameMap(int frame, void **ptr)
         return P3_NOT_INITIALIZED;
     }
     // find an unused page
-    while (table != NULL) {
-        if (table->incore == 0) {
-            table->frame = frame;
-            table->incore = 1;
-            *ptr = table;
+    int i;
+    for (i=0; i<numPages; i++) {
+        if (table[i].incore == 0) {
+            USLOSS_Console("Found Free Page %d\n", i);
+            table[i].frame = frame;
+            table[i].incore = 1;
+            table[i].read = 1;
+            table[i].write = 1;
+            framesList[frame].free = TRUE;
+            framesList[frame].pid = P1_GetPid();
+            *ptr = USLOSS_MmuRegion(&numPages);
+            ret = USLOSS_MmuSetPageTable(table);
+            assert(ret == USLOSS_MMU_OK);
+            P3_vmStats.freeFrames -= 1;
             return P1_SUCCESS;
         }
-        table++;
     }
     return P3_OUT_OF_PAGES;
     // update the page's PTE to map the page to the frame
@@ -244,6 +266,7 @@ P3FrameMap(int frame, void **ptr)
 int
 P3FrameUnmap(int frame) 
 {
+    USLOSS_Console("Unmapping frame %d\n", frame);
     USLOSS_PTE *table;
     if (frame < 0 || frame >= P3_vmStats.frames || framesList[frame].free == TRUE) {
         return P3_INVALID_FRAME;
@@ -254,14 +277,20 @@ P3FrameUnmap(int frame)
         return P3_NOT_INITIALIZED;
     }
     // verify that the process mapped the frame
-    while (table != NULL) {
-        if (table->incore == 1 && table->frame == frame) {
+    int i;
+    for (i=0; i<numPages; i++) {
+        if (table[i].incore == 1 && table[i].frame == frame) {
+            USLOSS_Console("Found frame for page %d\n", i);
             // update page's PTE to remove the mapping
-            table->incore = 0;
-            table->frame = -1;
+            table[i].incore = 0;
+            table[i].frame = -1;
+            table[i].read = 0;
+            table[i].write = 0;
+            framesList[frame].free = FALSE;
+            framesList[frame].pid = P1_GetPid();
+            P3_vmStats.freeFrames += 1;
             return P1_SUCCESS;
         }
-        table++;
     }
     // update the page table in the MMU (USLOSS_MmuSetPageTable)
     ret = USLOSS_MmuSetPageTable(table);
@@ -277,8 +306,10 @@ typedef struct Fault {
     int         cause;
     SID         wait;
     // other stuff goes here
+    struct Fault*       next; //The next fault in the linked list
 } Fault;
-
+static Fault *faultHead;
+static Fault *faultTail;
 
 /*
  *----------------------------------------------------------------------
@@ -293,9 +324,19 @@ typedef struct Fault {
 static void
 FaultHandler(int type, void *arg)
 {
-    Fault   fault UNUSED;
-
+    USLOSS_Console("Fault has occurred\n");
+    Fault   fault;
+    fault.pid = P1_GetPid();
     fault.offset = (int) arg;
+    fault.cause = USLOSS_MmuGetCause();
+
+    if (faultHead == NULL) {
+        *faultHead = fault;
+        *faultTail = fault;
+    } else {
+        *(faultTail->next) = fault;
+        faultTail = faultTail->next;
+    }
     // fill in other fields in fault
     // add to queue of pending faults
     // let pagers know there is a pending fault
@@ -303,7 +344,7 @@ FaultHandler(int type, void *arg)
 
     // kill off faulting process so skeleton code doesn't hang
     // delete this in your solution
-    P2_Terminate(42);
+    // P2_Terminate(42);
 }
 
 
@@ -324,6 +365,7 @@ FaultHandler(int type, void *arg)
 int
 P3PagerInit(int pages, int frames, int pagers)
 {
+    USLOSS_Console("Calling Pager Init\n");
     int     result = P1_SUCCESS;
     checkInKernelMode();
     USLOSS_IntVec[USLOSS_MMU_INT] = FaultHandler;
@@ -331,7 +373,7 @@ P3PagerInit(int pages, int frames, int pagers)
 
     if(initialized){
         result = P3_ALREADY_INITIALIZED;
-    }else if(pagers <= 0 || pagers > P3_MAX_PAGERS){
+    } else if (pagers <= 0 || pagers > P3_MAX_PAGERS){
         result = P3_INVALID_NUM_PAGERS;
     }else{
         // initialize the pager data structures
@@ -355,6 +397,7 @@ P3PagerInit(int pages, int frames, int pagers)
             assert(P1_P(pagersList[i].sid) == P1_SUCCESS);
             assert(P1_V(pagersList[i].sid) == P1_SUCCESS);
         }
+        initialized = 1;
     }
 
 
@@ -377,6 +420,7 @@ P3PagerInit(int pages, int frames, int pagers)
 int
 P3PagerShutdown(void)
 {
+    USLOSS_Console("Calling Pager Shutdown\n");
     int result = P1_SUCCESS;
     if(!initialized){
         result = P3_NOT_INITIALIZED;
@@ -391,8 +435,8 @@ P3PagerShutdown(void)
         }
 
         // clean up the pager data structures
-
     }
+    initialized = 0;
 
     return result;
 }
@@ -431,14 +475,17 @@ Pager(void *arg)
         unblock faulting process
 
     **********************************/
+   USLOSS_Console("Running the Pager Function\n");
     int pagerCount = *((int *)arg);
     //  notify P3PagerInit that we are running
     assert(P1_V(pagersList[pagerCount].sid) == P1_SUCCESS);
 
     // loop until P3PagerShutdown is called
-    while(pagersList[pagerCount].quit != 1){
+    while(initialized != 0) {
+        if (faultHead != NULL) {
+            USLOSS_Console("Found a fault!\n");
+        }
         // assert(P1_P(faultList.faultComm));
-        pagerCount++;
     }
     return 0;
 }

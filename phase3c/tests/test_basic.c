@@ -41,7 +41,7 @@ static int passed = FALSE;
 #ifdef DEBUG
 int debugging = 1;
 #else
-int debugging = 0;
+int debugging = 1;
 #endif /* DEBUG */
 
 static void
@@ -73,11 +73,13 @@ Child(void *arg)
         page = vmRegion + j * pageSize;
         Debug("Child \"%s\" reading zeros from page %d @ %p\n", name, j, page);
         for (int k = 0; k < pageSize; k++) {
+            USLOSS_Console("Reading bit %d\n", k);
             TEST(page[k], '\0');
         }
     }    
     for (i = 0; i < ITERATIONS; i++) {
         for (j = 0; j < PAGES; j++) {
+            USLOSS_Console("Sleepy System\n");
             rc = Sys_Sleep(1);
             assert(rc == P1_SUCCESS);
             page = vmRegion + j * pageSize;
@@ -112,16 +114,19 @@ P4_Startup(void *arg)
 
     Debug("P4_Startup starting.\n");
     rc = Sys_VmInit(PAGES, PAGES, numChildren * PAGES, PAGERS, (void **) &vmRegion);
+    USLOSS_Console("Called VmInit\n");
     TEST(rc, P1_SUCCESS);
 
 
     pageSize = USLOSS_MmuPageSize();
     for (i = 0; i < numChildren; i++) {
         rc = Sys_Spawn(names[i], Child, (void *) names[i], USLOSS_MIN_STACK * 4, 3, &pid);
+        USLOSS_Console("Called Sys_Spawn\n");
         assert(rc == P1_SUCCESS);
     }
     for (i = 0; i < numChildren; i++) {
         rc = Sys_Wait(&pid, &status);
+        USLOSS_Console("Called Sys_Wait\n");
         assert(rc == P1_SUCCESS);
         TEST(status, 0);
     }
