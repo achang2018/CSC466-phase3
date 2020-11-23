@@ -29,10 +29,15 @@ void debug3(char *fmt, ...)
     }
 }
 
+static int FRAME_UNUSED = 1;
+static int FRAME_INUSE = 2;
+static int FRAME_ASSIGNED = 3;
+static int FRAME_MAPPED = 4;
+
 typedef struct Frame
 {
     PID pid;
-    int free;
+    int state;
 } Frame;
 
 typedef struct PagerStruct {
@@ -72,6 +77,11 @@ static void checkInKernelMode() {
  * P3FrameInit --
  *
  *  Initializes the frame data structures.
+ *  Four states of a frame:
+ *      FRAME_UNUSED
+ *      FRAME_INUSE
+ *      FRAME_ASSIGNED
+ *      FRAME_MAPPED
  *
  * Results:
  *   P3_ALREADY_INITIALIZED:    this function has already been called
@@ -98,7 +108,7 @@ P3FrameInit(int pages, int frames)
         framesList = malloc(sizeof(Frame) * frames);
         int i;
         for(i = 0; i < frames; i++){
-            framesList[i].free = TRUE;
+            framesList[i].state = FRAME_UNUSED;
             framesList[i].pid = -1;
         }
         assert(P1_V(frameSem) == P1_SUCCESS);
@@ -183,7 +193,7 @@ P3FrameFreeAll(int pid)
     int i;
     for (i =0; i<numPages; i++) {
         if (table[i].incore == 1) {
-            framesList[table[i].frame].free = TRUE;
+            framesList[table[i].frame].state = FRAME_UNUSED;
             framesList[table[i].frame].pid = -1;
             table[i].incore = 0;
             table[i].frame = -1;
@@ -217,7 +227,7 @@ P3FrameMap(int frame, void **ptr)
 {
     USLOSS_Console("Mapping Frame %d\n", frame);
     USLOSS_PTE *table;
-    if (frame < 0 || frame >= P3_vmStats.frames || framesList[frame].free == FALSE) {
+    if (frame < 0 || frame >= P3_vmStats.frames || framesList[frame].state != FRAME_UNUSED) {
         return P3_INVALID_FRAME;
     }
 
@@ -235,7 +245,7 @@ P3FrameMap(int frame, void **ptr)
             table[i].incore = 1;
             table[i].read = 1;
             table[i].write = 1;
-            framesList[frame].free = TRUE;
+            framesList[frame].state = FRAME_MAPPED;
             framesList[frame].pid = P1_GetPid();
             *ptr = USLOSS_MmuRegion(&numPages);
             ret = USLOSS_MmuSetPageTable(table);
@@ -268,7 +278,7 @@ P3FrameUnmap(int frame)
 {
     USLOSS_Console("Unmapping frame %d\n", frame);
     USLOSS_PTE *table;
-    if (frame < 0 || frame >= P3_vmStats.frames || framesList[frame].free == TRUE) {
+    if (frame < 0 || frame >= P3_vmStats.frames || framesList[frame].state == FRAME_UNUSED) {
         return P3_INVALID_FRAME;
     }
     // get the process's page table (P3PageTableGet)
@@ -286,7 +296,7 @@ P3FrameUnmap(int frame)
             table[i].frame = -1;
             table[i].read = 0;
             table[i].write = 0;
-            framesList[frame].free = FALSE;
+            framesList[frame].state = FRAME_UNUSED;
             framesList[frame].pid = P1_GetPid();
             P3_vmStats.freeFrames += 1;
             return P1_SUCCESS;
