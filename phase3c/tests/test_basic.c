@@ -76,7 +76,7 @@ Child(void *arg)
             USLOSS_Console("Reading bit %d\n", k);
             TEST(page[k], '\0');
         }
-    }    
+    }   
     for (i = 0; i < ITERATIONS; i++) {
         for (j = 0; j < PAGES; j++) {
             USLOSS_Console("Sleepy System\n");

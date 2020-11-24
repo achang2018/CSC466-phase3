@@ -30,8 +30,8 @@ void debug3(char *fmt, ...)
 }
 
 static int FRAME_UNUSED = 1;
-static int FRAME_INUSE = 2;
-static int FRAME_ASSIGNED = 3;
+// static int FRAME_INUSE = 2;
+// static int FRAME_ASSIGNED = 3;
 static int FRAME_MAPPED = 4;
 
 typedef struct Frame
@@ -92,6 +92,7 @@ static void checkInKernelMode() {
 int
 P3FrameInit(int pages, int frames)
 {
+    USLOSS_Console("Calling FrameInit\n");
     int result = P1_SUCCESS;
     checkInKernelMode();
     
@@ -104,7 +105,7 @@ P3FrameInit(int pages, int frames)
         assert(P1_SemCreate(frameSemName, 1, &frameSem) == P1_SUCCESS);
         assert(P1_P(frameSem) == P1_SUCCESS);
 
-        // initialize the frame data structures, e.g. the pool of free frames
+        // initialize the frame data structures, e.g. the pool of  frames
         framesList = malloc(sizeof(Frame) * frames);
         int i;
         for(i = 0; i < frames; i++){
@@ -147,6 +148,7 @@ P3FrameInit(int pages, int frames)
 int
 P3FrameShutdown(void)
 {
+    USLOSS_Console("Calling frame shutdown\n");
     int result = P1_SUCCESS;
     checkInKernelMode();
 
@@ -191,8 +193,13 @@ P3FrameFreeAll(int pid)
         return P3_NOT_INITIALIZED;
     }
     int i;
-    for (i =0; i<numPages; i++) {
+    int pages;
+    char *ptr = (char *)USLOSS_MmuRegion(&pages);
+    USLOSS_Console("Found %d pages for %p\n", pages, ptr);
+    for (i =0; i<pages; i++) {  
         if (table[i].incore == 1) {
+            USLOSS_Console("Freeing page %d\n", i);
+            ptr[i] = '\0';
             framesList[table[i].frame].state = FRAME_UNUSED;
             framesList[table[i].frame].pid = -1;
             table[i].incore = 0;
@@ -247,7 +254,8 @@ P3FrameMap(int frame, void **ptr)
             table[i].write = 1;
             framesList[frame].state = FRAME_MAPPED;
             framesList[frame].pid = P1_GetPid();
-            *ptr = USLOSS_MmuRegion(&numPages);
+            int pages;
+            *ptr = USLOSS_MmuRegion(&pages);
             ret = USLOSS_MmuSetPageTable(table);
             assert(ret == USLOSS_MMU_OK);
             P3_vmStats.freeFrames -= 1;
@@ -320,6 +328,8 @@ typedef struct Fault {
 } Fault;
 static Fault *faultHead;
 static Fault *faultTail;
+static SID faultSem;
+// static SID pagerSem;
 
 /*
  *----------------------------------------------------------------------
@@ -335,26 +345,29 @@ static void
 FaultHandler(int type, void *arg)
 {
     USLOSS_Console("Fault has occurred\n");
-    Fault   fault;
-    fault.pid = P1_GetPid();
-    fault.offset = (int) arg;
-    fault.cause = USLOSS_MmuGetCause();
+    Fault*   fault = malloc(sizeof(Fault));
+    // fill in other fields in fault
+    fault->pid = P1_GetPid();
+    fault->offset = (int) arg;
+    fault->cause = USLOSS_MmuGetCause();
+    fault->wait = 0;
 
+    // add to queue of pending faults
     if (faultHead == NULL) {
-        *faultHead = fault;
-        *faultTail = fault;
+        USLOSS_Console("Adding to the linked list\n");
+        faultHead = fault;
+        faultTail = fault;
     } else {
-        *(faultTail->next) = fault;
+        faultTail->next = fault;
         faultTail = faultTail->next;
     }
-    // fill in other fields in fault
-    // add to queue of pending faults
+    USLOSS_Console("Added the new fault to the queue\n");
+    assert(P1_V(faultSem) == P1_SUCCESS); // Notifying the pagers that a fault has ocurred
+    USLOSS_Console("Pushing to wait for pager to finish\n");
     // let pagers know there is a pending fault
     // wait for fault to be handled
-
-    // kill off faulting process so skeleton code doesn't hang
-    // delete this in your solution
-    // P2_Terminate(42);
+    assert(P1_P(fault->wait) == P1_SUCCESS);
+    USLOSS_Console("Pager has finished\n");
 }
 
 
@@ -387,6 +400,7 @@ P3PagerInit(int pages, int frames, int pagers)
         result = P3_INVALID_NUM_PAGERS;
     }else{
         // initialize the pager data structures
+        initialized = 1;
         int i;
         for(i = 0; i < P3_MAX_PAGERS; i++){
             pagersList[i].pid = -1;
@@ -401,13 +415,13 @@ P3PagerInit(int pages, int frames, int pagers)
             assert(P1_SemCreate(name,0,&pagersList[i].sid) == P1_SUCCESS);
 
             int pid;
-            assert(P1_Fork(name,Pager,&i,USLOSS_MIN_STACK,P3_PAGER_PRIORITY,1,&pid) == P1_SUCCESS);
+            assert(P1_Fork(name, Pager,&i,USLOSS_MIN_STACK,P3_PAGER_PRIORITY,1,&pid) == P1_SUCCESS);
             pagersList[i].pid = pid;
 
             assert(P1_P(pagersList[i].sid) == P1_SUCCESS);
             assert(P1_V(pagersList[i].sid) == P1_SUCCESS);
         }
-        initialized = 1;
+        
     }
 
 
@@ -485,17 +499,71 @@ Pager(void *arg)
         unblock faulting process
 
     **********************************/
-   USLOSS_Console("Running the Pager Function\n");
+    USLOSS_Console("Running the Pager Function\n");
     int pagerCount = *((int *)arg);
     //  notify P3PagerInit that we are running
     assert(P1_V(pagersList[pagerCount].sid) == P1_SUCCESS);
 
     // loop until P3PagerShutdown is called
     while(initialized != 0) {
+        USLOSS_Console("Where is the segfault?\n");
+        assert(P1_P(faultSem) == P1_SUCCESS);
+        // USLOSS_Console("P1_P faultSem %d\n", faultSem);
         if (faultHead != NULL) {
             USLOSS_Console("Found a fault!\n");
+            if (faultHead->cause == USLOSS_MMU_ERR_ACC) {
+                P1_Quit(1);
+            }
+            USLOSS_Console("Searching for free frame...\n");
+            int frame;
+            if (P3_vmStats.freeFrames > 0) {
+                int i;
+                for (i=0; i<P3_vmStats.frames; i++) {
+                    if (framesList[i].state == FRAME_UNUSED) {
+                        frame = i;
+                        break;
+                    }
+                }
+            } else {
+                USLOSS_Console("No Free frames\n");
+                assert(P3SwapOut(&frame) == P1_SUCCESS);
+            }
+            USLOSS_Console("Found free frame %d\n", frame);
+            int ret = P3SwapIn(faultHead->pid, faultHead->offset, frame); // This might not be right yet
+            if (ret == P3_EMPTY_PAGE) {
+                USLOSS_Console("Page is empty!\n");
+                void *addr;
+                assert(P3FrameMap(frame, &addr) == P1_SUCCESS);
+                int pageSize = USLOSS_MmuPageSize();
+                char *ptr = (char *)addr;
+                int i;
+                for (i=0; i<pageSize; i++) {
+                    ptr[i] = '\0';
+                }
+                assert(P3FrameUnmap(frame) == P1_SUCCESS);
+
+            } else if (ret == P3_OUT_OF_SWAP) {
+                P1_Quit(1);
+            }
         }
+        SID wait = faultHead->wait;
+        if (faultHead == faultTail) {
+            free(faultHead);
+            faultHead = NULL;
+            faultTail = NULL;
+        } else {
+            Fault *fault = faultHead;
+            faultHead = faultHead->next;
+            free(fault);
+        }
+        USLOSS_Console("Can tell the handler that the fault is done waiting\n");
+        assert(P1_V(wait) == P1_SUCCESS);
+        // assert(USLOSS_MmuSetPageTable(table) == USLOSS_MMU_OK);
+        
+        // USLOSS_Console("Finished frame mapping\n");
         // assert(P1_P(faultList.faultComm));
+        // assert(P1_V(faultSem) == P1_SUCCESS);  
     }
+    USLOSS_Console("Stopping the pager function\n");
     return 0;
 }
