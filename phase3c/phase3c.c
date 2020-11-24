@@ -1,5 +1,7 @@
 /*
  * phase3c.c
+ * 
+ * Authors: Bianca Lara and Ann Chang
  *
  */
 
@@ -54,11 +56,6 @@ static int numPages;
 static Frame *framesList;
 static SID frameSem;
 static SID vmStatsSem;
-
-// This allows the skeleton code to compile. Remove it in your solution.
-
-#define UNUSED __attribute__((unused))
-
 
 static void IllegalMessage(int n, void *arg){
     P1_Quit(1024);
@@ -243,19 +240,25 @@ P3FrameMap(int frame, void **ptr)
     if (ret != P1_SUCCESS || table == NULL) {
         return P3_NOT_INITIALIZED;
     }
+    int pages;
+    *ptr = USLOSS_MmuRegion(&pages);
+    int pageSize = USLOSS_MmuPageSize();
+
     // find an unused page
     int i;
-    for (i=0; i<numPages; i++) {
+    for (i=0; i<pages; i++) {
         if (table[i].incore == 0) {
             USLOSS_Console("Found Free Page %d\n", i);
+            // update the page's PTE to map the page to the frame
             table[i].frame = frame;
             table[i].incore = 1;
             table[i].read = 1;
             table[i].write = 1;
             framesList[frame].state = FRAME_MAPPED;
             framesList[frame].pid = P1_GetPid();
-            int pages;
-            *ptr = USLOSS_MmuRegion(&pages);
+            // Moving the ptr to the page that we found
+            ptr += i * pageSize; 
+            // Update the page table in the MMU (USLOSS_MmuSetPageTable)
             ret = USLOSS_MmuSetPageTable(table);
             assert(ret == USLOSS_MMU_OK);
             P3_vmStats.freeFrames -= 1;
@@ -263,8 +266,6 @@ P3FrameMap(int frame, void **ptr)
         }
     }
     return P3_OUT_OF_PAGES;
-    // update the page's PTE to map the page to the frame
-    // update the page table in the MMU (USLOSS_MmuSetPageTable)
 }
 /*
  *----------------------------------------------------------------------
@@ -286,7 +287,7 @@ P3FrameUnmap(int frame)
 {
     USLOSS_Console("Unmapping frame %d\n", frame);
     USLOSS_PTE *table;
-    if (frame < 0 || frame >= P3_vmStats.frames || framesList[frame].state == FRAME_UNUSED) {
+    if (frame < 0 || frame >= P3_vmStats.frames) {
         return P3_INVALID_FRAME;
     }
     // get the process's page table (P3PageTableGet)
@@ -307,12 +308,12 @@ P3FrameUnmap(int frame)
             framesList[frame].state = FRAME_UNUSED;
             framesList[frame].pid = P1_GetPid();
             P3_vmStats.freeFrames += 1;
+            // update the page table in the MMU (USLOSS_MmuSetPageTable);
+            ret = USLOSS_MmuSetPageTable(table);
+            assert(ret == USLOSS_MMU_OK);
             return P1_SUCCESS;
         }
     }
-    // update the page table in the MMU (USLOSS_MmuSetPageTable)
-    ret = USLOSS_MmuSetPageTable(table);
-    assert(ret == USLOSS_MMU_OK);
     return P3_FRAME_NOT_MAPPED;
 }
 
@@ -328,7 +329,7 @@ typedef struct Fault {
 } Fault;
 static Fault *faultHead;
 static Fault *faultTail;
-static SID faultSem;
+static SID    faultSem;
 // static SID pagerSem;
 
 /*
@@ -350,8 +351,12 @@ FaultHandler(int type, void *arg)
     fault->pid = P1_GetPid();
     fault->offset = (int) arg;
     fault->cause = USLOSS_MmuGetCause();
-    fault->wait = 0;
-
+    char name[P1_MAXNAME + 1];
+    snprintf(name,sizeof(name),"%s of %d at %d","fault", fault->pid, fault->offset);
+    USLOSS_Console("Creating semaphore %s\n", name);
+    int wait;
+    assert(P1_SemCreate(name, 0, &wait) == P1_SUCCESS);
+    fault->wait = wait;
     // add to queue of pending faults
     if (faultHead == NULL) {
         USLOSS_Console("Adding to the linked list\n");
@@ -367,6 +372,7 @@ FaultHandler(int type, void *arg)
     // let pagers know there is a pending fault
     // wait for fault to be handled
     assert(P1_P(fault->wait) == P1_SUCCESS);
+    assert(P1_SemFree(wait) == P1_SUCCESS);
     USLOSS_Console("Pager has finished\n");
 }
 
@@ -393,6 +399,10 @@ P3PagerInit(int pages, int frames, int pagers)
     checkInKernelMode();
     USLOSS_IntVec[USLOSS_MMU_INT] = FaultHandler;
 
+    // creating semaphore for faults
+    char faultSemName[P1_MAXNAME];
+    strcpy(faultSemName, "faultSem");
+    assert(P1_SemCreate(faultSemName, 0, &faultSem) == P1_SUCCESS);
 
     if(initialized){
         result = P3_ALREADY_INITIALIZED;
@@ -419,7 +429,7 @@ P3PagerInit(int pages, int frames, int pagers)
             pagersList[i].pid = pid;
 
             assert(P1_P(pagersList[i].sid) == P1_SUCCESS);
-            assert(P1_V(pagersList[i].sid) == P1_SUCCESS);
+            // assert(P1_V(pagersList[i].sid) == P1_SUCCESS);
         }
         
     }
@@ -506,13 +516,12 @@ Pager(void *arg)
 
     // loop until P3PagerShutdown is called
     while(initialized != 0) {
-        USLOSS_Console("Where is the segfault?\n");
+        USLOSS_Console("Waiting for fault?\n");
         assert(P1_P(faultSem) == P1_SUCCESS);
-        // USLOSS_Console("P1_P faultSem %d\n", faultSem);
         if (faultHead != NULL) {
             USLOSS_Console("Found a fault!\n");
             if (faultHead->cause == USLOSS_MMU_ERR_ACC) {
-                P1_Quit(1);
+                P1_Quit(1); // Should be P2_Terminate
             }
             USLOSS_Console("Searching for free frame...\n");
             int frame;
@@ -529,23 +538,24 @@ Pager(void *arg)
                 assert(P3SwapOut(&frame) == P1_SUCCESS);
             }
             USLOSS_Console("Found free frame %d\n", frame);
-            int ret = P3SwapIn(faultHead->pid, faultHead->offset, frame); // This might not be right yet
+            int pageSize = USLOSS_MmuPageSize();
+            int page = faultHead->offset/pageSize;
+            int ret = P3SwapIn(faultHead->pid, page, frame);
             if (ret == P3_EMPTY_PAGE) {
                 USLOSS_Console("Page is empty!\n");
                 void *addr;
                 assert(P3FrameMap(frame, &addr) == P1_SUCCESS);
-                int pageSize = USLOSS_MmuPageSize();
                 char *ptr = (char *)addr;
                 int i;
+                // Zero out the frame at the given address
                 for (i=0; i<pageSize; i++) {
                     ptr[i] = '\0';
                 }
                 assert(P3FrameUnmap(frame) == P1_SUCCESS);
-
             } else if (ret == P3_OUT_OF_SWAP) {
                 P1_Quit(1);
             }
-        }
+        
         SID wait = faultHead->wait;
         if (faultHead == faultTail) {
             free(faultHead);
@@ -557,7 +567,11 @@ Pager(void *arg)
             free(fault);
         }
         USLOSS_Console("Can tell the handler that the fault is done waiting\n");
+        void *addr;
+        // update PTE in faulting process's page table to map page to frame
+        assert(P3FrameMap(frame, &addr) == P1_SUCCESS);
         assert(P1_V(wait) == P1_SUCCESS);
+        }
         // assert(USLOSS_MmuSetPageTable(table) == USLOSS_MMU_OK);
         
         // USLOSS_Console("Finished frame mapping\n");
