@@ -73,7 +73,7 @@ Child(void *arg)
         page = vmRegion + j * pageSize;
         Debug("Child \"%s\" reading zeros from page %d @ %p\n", name, j, page);
         for (int k = 0; k < pageSize; k++) {
-            USLOSS_Console("Reading bit %d\n", k);
+            // USLOSS_Console("Reading bit %d\n", k);
             TEST(page[k], '\0');
         }
     }   
