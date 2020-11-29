@@ -290,7 +290,6 @@ P3FrameUnmap(int frame)
         if (table[i].incore == 1 && table[i].frame == frame) {
             // update page's PTE to remove the mapping
             table[i].incore = 0;
-            table[i].frame = -1;
             table[i].read = 0;
             table[i].write = 0;
             framesList[frame].state = FRAME_UNUSED;
@@ -335,8 +334,14 @@ static int numPagers;
 static void
 FaultHandler(int type, void *arg)
 {
-    assert(P1_P(faultListSem) == P1_SUCCESS);
+    
     Fault*   fault = malloc(sizeof(Fault));
+    // mutex for vmStats
+    assert(P1_P(vmStatsSem) == P1_SUCCESS);
+    P3_vmStats.faults += 1;
+    assert(P1_V(vmStatsSem) == P1_SUCCESS);
+
+    assert(P1_P(faultListSem) == P1_SUCCESS);
     // fill in other fields in fault
     fault->pid = P1_GetPid();
     fault->offset = (int) arg;
@@ -354,6 +359,8 @@ FaultHandler(int type, void *arg)
         faultTail = faultTail->next;
     }
     // Let the pagers know there is a pending fault
+    
+    // USLOSS_Console("Fault Detected!\n");
     assert(P1_V(faultSem) == P1_SUCCESS); // Notifying the pagers that a fault has ocurred
     // wait for fault to be handled
     if (faultHead->status == P3_OUT_OF_SWAP) {
@@ -369,6 +376,7 @@ FaultHandler(int type, void *arg)
         free(fault);
     }
     assert(P1_V(faultListSem) == P1_SUCCESS);
+    // USLOSS_Console("Fault Finished\n");
 }
 
 
@@ -460,6 +468,7 @@ P3PagerShutdown(void)
         // cause the pagers to quit
         for(i = 0; i < P3_MAX_PAGERS; i++){
             if(pagersList[i].quit != -1){
+                USLOSS_Console("Pager Shutdowns\n");
                 // setting the pagerList[i] to quit
                 pagersList[i].quit = 1;
                 assert(P1_V(faultSem) == P1_SUCCESS); // Shutting down the pagers
@@ -485,13 +494,16 @@ P3PagerShutdown(void)
 static int
 Pager(void *arg)
 {
+    USLOSS_Console("Pager Started\n");
     int pagerCount = *((int *)arg);
     //  notify P3PagerInit that we are running
     assert(P1_V(pagersList[pagerCount].sid) == P1_SUCCESS);
 
     // loop until P3PagerShutdown is called
     while(initialized != 0) {
+        USLOSS_Console("Waiting for fault..\n");
         assert(P1_P(faultSem) == P1_SUCCESS);
+        USLOSS_Console("Found a fault!\n");
         if (faultHead != NULL) {
             int frame;
             if (P3_vmStats.freeFrames > 0) {
@@ -505,13 +517,17 @@ Pager(void *arg)
             } else {
                 assert(P3SwapOut(&frame) == P1_SUCCESS);
                 framesList[frame].state = FRAME_UNUSED;
-                // framesList[frame].pid = -1;
             }
+            // USLOSS_Console("Using the frame %d\n", frame);
             framesList[frame].pid = faultHead->pid;
             int pageSize = USLOSS_MmuPageSize();
             int page = faultHead->offset/pageSize;
             int ret = P3SwapIn(faultHead->pid, page, frame);
             if (ret == P3_EMPTY_PAGE) {
+                // New page, add to vmStats
+                assert(P1_P(vmStatsSem) == P1_SUCCESS);
+                P3_vmStats.new += 1;
+                assert(P1_V(vmStatsSem) == P1_SUCCESS);
                 void *addr;
                 assert(P3FrameMap(frame, &addr) == P1_SUCCESS);
                 // Zero out the frame at the given address
@@ -528,6 +544,7 @@ Pager(void *arg)
             // assert(P1_V(faultHead->wait) == P1_SUCCESS);
         }
     }
+    USLOSS_Console("Pager Finished\n");
     return 0;
 }
 

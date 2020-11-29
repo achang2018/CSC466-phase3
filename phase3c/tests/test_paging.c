@@ -1,8 +1,9 @@
 /*
- * basic.c
+ * paging.c
  *  
- *  Basic test case for Phase 3 Part C. It creates two processes, "A" and "B". 
- *  Each process has two pages and there are four frames so that all pages fit in memory.
+ *  Basic test case for Phase 3c. It creates two processes, "A" and "B". 
+ *  Each process has four pages and there are CHILDREN * PAGES frames.
+
  *  Each process writes its name into the first byte of each of its pages, sleeps for one
  *  second (to give the other process time to run), then verifies that the first byte
  *  of each page is correct. It then iterates a fixed number of times.
@@ -26,30 +27,30 @@
 #include <unistd.h>
 
 #include "tester.h"
-#include "phase3Int.h"
 
-#define PAGES 2         // # of pages per process (be sure to try different values)
-#define ITERATIONS 10
-#define PAGERS 2        // # of pagers
+#define CHILDREN (sizeof(names) / sizeof(char *))
+#define PAGES 4 // # of pages per child
+#define FRAMES (CHILDREN * PAGES)
+#define PRIORITY 3
+#define ITERATIONS 100
+#define PAGERS 3
 
 static char *vmRegion;
-static char *names[] = {"A","B"};   // names of children, add more names to create more children
+static char *names[] = {"A","B","C"};
 static int  pageSize;
-
 static int passed = FALSE;
-
 #ifdef DEBUG
 int debugging = 1;
 #else
-int debugging = 0;
+int debugging = 1;
 #endif /* DEBUG */
 
 static void
 Debug(char *fmt, ...)
-{
+{   
     va_list ap;
-
-    if (debugging) {
+    
+    if (debugging) { 
         va_start(ap, fmt);
         USLOSS_VConsole(fmt, ap);
     }
@@ -59,45 +60,32 @@ Debug(char *fmt, ...)
 static int
 Child(void *arg)
 {
+
     volatile char *name = (char *) arg;
     int     i,j;
-    char    *page;
+    char    *addr;
+    int     tod;
     int     rc;
-    int     pid;
-
-    Sys_GetPID(&pid);
-    Debug("Child \"%s\" (%d) starting.\n", name, pid);
-
-    // The first time a page is read it should be full of zeros.
-    for (j = 0; j < PAGES; j++) {
-        page = vmRegion + j * pageSize;
-        Debug("Child \"%s\" reading zeros from page %d @ %p\n", name, j, page);
-        for (int k = 0; k < pageSize; k++) {
-            TEST(page[k], '\0');
-        }
-    }    
+    Debug("Child \"%s\" starting.\n", name);
     for (i = 0; i < ITERATIONS; i++) {
         for (j = 0; j < PAGES; j++) {
-            rc = Sys_Sleep(1);
-            assert(rc == P1_SUCCESS);
-            page = vmRegion + j * pageSize;
-            Debug("Child \"%s\" writing to page %d @ %p\n", name, j, page);
-            for (int k = 0; k < pageSize; k++) {
-                page[k] = *name;
-            }
+            addr = vmRegion + j * pageSize;
+            Sys_GetTimeOfDay(&tod);
+            Debug("%f: Child \"%s\" writing to page %d @ %p\n", tod / 1000000.0, name, j, addr);
+            *addr = *name;
         }
+        rc = Sys_Sleep(1);
+        assert(rc == P1_SUCCESS);
         for (j = 0; j < PAGES; j++) {
-            rc = Sys_Sleep(1);
-            assert(rc == P1_SUCCESS);
-            page = vmRegion + j * pageSize;
-            Debug("Child \"%s\" reading from page %d @ %p\n", name, j, page);
-            for (int k = 0; k < pageSize; k++) {
-                TEST(page[k], *name);
-            }
+            addr = vmRegion + j * pageSize;
+            Sys_GetTimeOfDay(&tod);
+            Debug("%f: Child \"%s\" reading from page %d @ %p\n", tod / 1000000.0, name, j, addr);
+            assert(*addr == *name);
         }
     }
     Debug("Child \"%s\" done.\n", name);
     return 0;
+
 }
 
 
@@ -107,25 +95,26 @@ P4_Startup(void *arg)
     int     i;
     int     rc;
     int     pid;
-    int     status;
-    int     numChildren = sizeof(names) / sizeof(char *);
+    int     child;
+
     Debug("P4_Startup starting.\n");
-    rc = Sys_VmInit(PAGES, PAGES, numChildren * PAGES, PAGERS, (void **) &vmRegion);
-    TEST(rc, P1_SUCCESS);
-
-
+    rc = Sys_VmInit(PAGES, PAGES, FRAMES, PAGERS, (void **) &vmRegion);
+    if (rc != 0) {
+        USLOSS_Console("Sys_VmInit failed: %d\n", rc);
+        USLOSS_Halt(1);
+    }
     pageSize = USLOSS_MmuPageSize();
-    for (i = 0; i < numChildren; i++) {
-        rc = Sys_Spawn(names[i], Child, (void *) names[i], USLOSS_MIN_STACK * 4, 3, &pid);
+    for (i = 0; i < CHILDREN; i++) {
+        rc = Sys_Spawn(names[i], Child, (void *) names[i], USLOSS_MIN_STACK * 2, PRIORITY, &pid);
         assert(rc == P1_SUCCESS);
     }
-    for (i = 0; i < numChildren; i++) {
-        rc = Sys_Wait(&pid, &status);
+    for (i = 0; i < CHILDREN; i++) {
+        rc = Sys_Wait(&pid, &child);
         assert(rc == P1_SUCCESS);
-        TEST(status, 0);
+        TEST(child, 0);
     }
-    Debug("Children terminated\n");
     Sys_VmShutdown();
+    Debug("P4_Startup done.\n");
     PASSED();
     return 0;
 }
@@ -149,3 +138,6 @@ int P3SwapShutdown(void) {return P1_SUCCESS;}
 int P3SwapFreeAll(PID pid) {return P1_SUCCESS;}
 int P3SwapOut(int *frame) {return P1_SUCCESS;}
 int P3SwapIn(PID pid, int page, int frame) {return P3_EMPTY_PAGE;}
+
+
+
