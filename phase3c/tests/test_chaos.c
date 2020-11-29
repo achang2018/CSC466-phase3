@@ -66,7 +66,9 @@ Child(void *arg)
 
     for(int j =0; j < PAGES; j++){
        char *page = (char *) (vmRegion + j * pageSize);
+       USLOSS_Console("Beginning string copy at %p\n", page);
        strcpy(page, empty); 	
+       USLOSS_Console("Done with string copy!\n");
        valid[j] = 0;
     }
     USLOSS_Console("Starting iterations\n");

@@ -195,7 +195,9 @@ P3FrameFreeAll(int pid)
             table[i].write = 0;
         }
     }
+    assert(P1_P(vmStatsSem) == P1_SUCCESS);
     P3_vmStats.freeFrames = P3_vmStats.frames;
+    assert(P1_V(vmStatsSem) == P1_SUCCESS);
     ret = USLOSS_MmuSetPageTable(table);
     assert(ret == USLOSS_MMU_OK);
     return P1_SUCCESS;
@@ -248,9 +250,10 @@ P3FrameMap(int frame, void **ptr)
             // Update the page table in the MMU (USLOSS_MmuSetPageTable)
             ret = USLOSS_MmuSetPageTable(table);
             assert(ret == USLOSS_MMU_OK);
-            assert(P3PageTableSet(P1_GetPid(), table) == P1_SUCCESS);
-
+            // assert(P3PageTableSet(framesList[frame].pid, table) == P1_SUCCESS);
+            assert(P1_P(vmStatsSem) == P1_SUCCESS);
             P3_vmStats.freeFrames -= 1;
+            assert(P1_V(vmStatsSem) == P1_SUCCESS);
 
             return P1_SUCCESS;
         }
@@ -293,7 +296,9 @@ P3FrameUnmap(int frame)
             table[i].read = 0;
             table[i].write = 0;
             framesList[frame].state = FRAME_UNUSED;
+            assert(P1_P(vmStatsSem) == P1_SUCCESS);
             P3_vmStats.freeFrames += 1;
+            assert(P1_V(vmStatsSem) == P1_SUCCESS);
             // update the page table in the MMU (USLOSS_MmuSetPageTable);
             ret = USLOSS_MmuSetPageTable(table);
             assert(ret == USLOSS_MMU_OK);
@@ -334,7 +339,6 @@ static int numPagers;
 static void
 FaultHandler(int type, void *arg)
 {
-    
     Fault*   fault = malloc(sizeof(Fault));
     // mutex for vmStats
     assert(P1_P(vmStatsSem) == P1_SUCCESS);
@@ -346,7 +350,9 @@ FaultHandler(int type, void *arg)
     fault->pid = P1_GetPid();
     fault->offset = (int) arg;
     fault->cause = USLOSS_MmuGetCause();
-    fault->wait = 0;
+    char name[P1_MAXNAME + 1];
+    snprintf(name,sizeof(name),"%s%d","fault", fault->pid);
+    assert(P1_SemCreate(name, 0, &(fault->wait)) == P1_SUCCESS);
     if (fault->cause == USLOSS_MMU_ERR_ACC) {
         P2_Terminate(USLOSS_MMU_ERR_ACC);
     }
@@ -358,11 +364,15 @@ FaultHandler(int type, void *arg)
         faultTail->next = fault;
         faultTail = faultTail->next;
     }
+    assert(P1_V(faultListSem) == P1_SUCCESS);
     // Let the pagers know there is a pending fault
     
-    // USLOSS_Console("Fault Detected!\n");
     assert(P1_V(faultSem) == P1_SUCCESS); // Notifying the pagers that a fault has ocurred
+    assert(P1_P(fault->wait) == P1_SUCCESS);
     // wait for fault to be handled
+    assert(P1_P(faultListSem) == P1_SUCCESS);
+    assert(P1_SemFree(fault->wait) == P1_SUCCESS);
+
     if (faultHead->status == P3_OUT_OF_SWAP) {
         P2_Terminate(P3_OUT_OF_SWAP);
     }
@@ -375,8 +385,8 @@ FaultHandler(int type, void *arg)
         faultHead = faultHead->next;
         free(fault);
     }
+    
     assert(P1_V(faultListSem) == P1_SUCCESS);
-    // USLOSS_Console("Fault Finished\n");
 }
 
 
@@ -418,7 +428,7 @@ P3PagerInit(int pages, int frames, int pagers)
         // initialize the pager data structures
         initialized = 1;
         int i;
-        for(i = 0; i < P3_MAX_PAGERS; i++){
+        for(i = 0; i < P3_MAX_PAGERS; i++) {
             pagersList[i].pid = -1;
             pagersList[i].sid = -1;
             pagersList[i].quit = 0;
@@ -468,7 +478,6 @@ P3PagerShutdown(void)
         // cause the pagers to quit
         for(i = 0; i < P3_MAX_PAGERS; i++){
             if(pagersList[i].quit != -1){
-                USLOSS_Console("Pager Shutdowns\n");
                 // setting the pagerList[i] to quit
                 pagersList[i].quit = 1;
                 assert(P1_V(faultSem) == P1_SUCCESS); // Shutting down the pagers
@@ -494,16 +503,13 @@ P3PagerShutdown(void)
 static int
 Pager(void *arg)
 {
-    USLOSS_Console("Pager Started\n");
     int pagerCount = *((int *)arg);
     //  notify P3PagerInit that we are running
     assert(P1_V(pagersList[pagerCount].sid) == P1_SUCCESS);
 
     // loop until P3PagerShutdown is called
     while(initialized != 0) {
-        USLOSS_Console("Waiting for fault..\n");
         assert(P1_P(faultSem) == P1_SUCCESS);
-        USLOSS_Console("Found a fault!\n");
         if (faultHead != NULL) {
             int frame;
             if (P3_vmStats.freeFrames > 0) {
@@ -518,7 +524,6 @@ Pager(void *arg)
                 assert(P3SwapOut(&frame) == P1_SUCCESS);
                 framesList[frame].state = FRAME_UNUSED;
             }
-            // USLOSS_Console("Using the frame %d\n", frame);
             framesList[frame].pid = faultHead->pid;
             int pageSize = USLOSS_MmuPageSize();
             int page = faultHead->offset/pageSize;
@@ -541,10 +546,9 @@ Pager(void *arg)
             // update PTE in faulting process's page table to map page to frame
             assert(P3FrameMap(frame, &ptr) == P1_SUCCESS);
             faultHead->status = P1_SUCCESS;
-            // assert(P1_V(faultHead->wait) == P1_SUCCESS);
+            assert(P1_V(faultHead->wait) == P1_SUCCESS);
         }
     }
-    USLOSS_Console("Pager Finished\n");
     return 0;
 }
 
