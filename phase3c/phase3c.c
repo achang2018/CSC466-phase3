@@ -1,8 +1,12 @@
-/*
- * phase3c.c
- * 
- * Authors: Bianca Lara and Ann Chang
- *
+/**
+ *  Authors: Bianca Lara, Ann Chang
+ *  Due Date: December 2th, 2020
+ *  Phase 3c
+ *  Submission Type: Group
+ *  Comments: The phase 3c implementation of phase 3. Implements the 
+ *            virtual addressing and pagers where the frames and pages are
+ *            no longer shared. The pagers will connect pages and frames 
+ *            following page faults.
  */
 
 #include <assert.h>
@@ -40,6 +44,10 @@ typedef struct Frame
     int state;
 } Frame;
 
+static Frame *framesList;
+static SID frameSem;
+static SID vmStatsSem;
+
 typedef struct PagerStruct {
     PID pid;
     SID sid;
@@ -51,10 +59,29 @@ static PagerStruct pagersList[P3_MAX_PAGERS];
 static int initialized;
 static int numPages;
 
-static Frame *framesList;
-static SID frameSem;
-static SID vmStatsSem;
 
+// information about a fault. Add to this as necessary.
+
+typedef struct Fault {
+    PID         pid;
+    int         offset;
+    int         cause;
+    SID         wait;
+    // other stuff goes here
+    struct Fault*       next; //The next fault in the linked list
+    int         status;
+} Fault;
+
+static Fault *faultHead;
+static Fault *faultTail;
+static SID    faultSem;
+static SID    faultListSem;
+static int numPagers;
+
+
+///////////////////////////////////////////////////////////////////////////////
+// Helper Functions
+///////////////////////////////////////////////////////////////////////////////
 static void IllegalMessage(int n, void *arg){
     P1_Quit(1024);
 }
@@ -65,6 +92,10 @@ static void checkInKernelMode() {
         USLOSS_IllegalInstruction();
     }
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// End of Helper Functions
+///////////////////////////////////////////////////////////////////////////////
 
 /*
  *----------------------------------------------------------------------
@@ -307,24 +338,6 @@ P3FrameUnmap(int frame)
     return P3_FRAME_NOT_MAPPED;
 }
 
-// information about a fault. Add to this as necessary.
-
-typedef struct Fault {
-    PID         pid;
-    int         offset;
-    int         cause;
-    SID         wait;
-    // other stuff goes here
-    struct Fault*       next; //The next fault in the linked list
-    int         status;
-} Fault;
-static Fault *faultHead;
-static Fault *faultTail;
-static SID    faultSem;
-static SID    faultListSem;
-static int numPagers;
-// static SID pagerSem;
-
 /*
  *----------------------------------------------------------------------
  *
@@ -513,8 +526,10 @@ Pager(void *arg)
         assert(P1_P(faultSem) == P1_SUCCESS);
         if (faultHead != NULL) {
             int frame;
+             // if there are free frames
             if (P3_vmStats.freeFrames > 0) {
                 int i;
+                // frame = a free frame
                 for (i=0; i<P3_vmStats.frames; i++) {
                     if (framesList[i].state == FRAME_UNUSED) {
                         frame = i;
@@ -522,6 +537,7 @@ Pager(void *arg)
                     }
                 }
             } else {
+                // P3SwapOut(&frame);
                 assert(P3SwapOut(&frame) == P1_SUCCESS);
                 framesList[frame].state = FRAME_UNUSED;
             }
@@ -529,6 +545,7 @@ Pager(void *arg)
             int pageSize = USLOSS_MmuPageSize();
             int page = faultHead->offset/pageSize;
             int ret = P3SwapIn(faultHead->pid, page, frame);
+            // if rc == P3_EMPTY_PAGE
             if (ret == P3_EMPTY_PAGE) {
                 // New page, add to vmStats
                 assert(P1_P(vmStatsSem) == P1_SUCCESS);
@@ -540,6 +557,7 @@ Pager(void *arg)
                 memset(addr, 0, pageSize);
                 assert(P3FrameUnmap(frame) == P1_SUCCESS);
             } else if (ret == P3_OUT_OF_SWAP) {
+                //  kill the faulting process
                 faultHead->status = P3_OUT_OF_SWAP;
                 assert(P1_V(faultHead->wait) == P1_SUCCESS);
                 continue;
@@ -553,25 +571,3 @@ Pager(void *arg)
     }
     return 0;
 }
-
-    /********************************
-
-    notify P3PagerInit that we are running
-    loop until P3PagerShutdown is called
-        wait for a fault
-        if it's an access fault kill the faulting process
-        if there are free frames
-            frame = a free frame
-        else
-            P3SwapOut(&frame);
-        rc = P3SwapIn(pid, page, frame)
-        if rc == P3_EMPTY_PAGE
-            P3FrameMap(frame, &addr)
-            zero-out frame at addr
-            P3FrameUnmap(frame);
-        else if rc == P3_OUT_OF_SWAP
-            kill the faulting process
-        update PTE in faulting process's page table to map page to frame
-        unblock faulting process
-
-    **********************************/
