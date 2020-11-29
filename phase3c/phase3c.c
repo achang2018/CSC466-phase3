@@ -157,7 +157,6 @@ P3FrameShutdown(void)
         assert(P1_SemFree(frameSem) == P1_SUCCESS);
         assert(P1_SemFree(vmStatsSem) == P1_SUCCESS);
     }
-
     return result;
 }
 
@@ -371,16 +370,19 @@ FaultHandler(int type, void *arg)
     assert(P1_P(fault->wait) == P1_SUCCESS);
     // wait for fault to be handled
     assert(P1_P(faultListSem) == P1_SUCCESS);
-    assert(P1_SemFree(fault->wait) == P1_SUCCESS);
+    // assert(P1_SemFree(fault->wait) == P1_SUCCESS);
 
     if (faultHead->status == P3_OUT_OF_SWAP) {
         P2_Terminate(P3_OUT_OF_SWAP);
     }
-    if (faultHead == faultTail) {
-                free(faultHead);
-                faultHead = NULL;
-                faultTail = NULL;
-    } else {
+    assert(P1_SemFree(fault->wait) == P1_SUCCESS);
+    if (faultHead == faultTail && faultHead != NULL) {
+        // assert(P1_SemFree(faultHead->wait));
+        free(faultHead);
+        faultHead = NULL;
+        faultTail = NULL;
+    } else if (faultHead != NULL){
+        // assert(P1_SemFree(faultHead->wait));
         Fault *fault = faultHead;
         faultHead = faultHead->next;
         free(fault);
@@ -476,7 +478,7 @@ P3PagerShutdown(void)
         initialized = 0;
         
         // cause the pagers to quit
-        for(i = 0; i < P3_MAX_PAGERS; i++){
+        for(i = 0; i < P3_MAX_PAGERS; i++) {
             if(pagersList[i].quit != -1){
                 // setting the pagerList[i] to quit
                 pagersList[i].quit = 1;
@@ -486,7 +488,6 @@ P3PagerShutdown(void)
 
         // clean up the pager data structures
     }
-
     return result;
 }
 
@@ -540,6 +541,7 @@ Pager(void *arg)
                 assert(P3FrameUnmap(frame) == P1_SUCCESS);
             } else if (ret == P3_OUT_OF_SWAP) {
                 faultHead->status = P3_OUT_OF_SWAP;
+                assert(P1_V(faultHead->wait) == P1_SUCCESS);
                 continue;
             }
             void *ptr;

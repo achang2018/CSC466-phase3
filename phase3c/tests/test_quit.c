@@ -30,7 +30,7 @@ static int passed = FALSE;
 #ifdef DEBUG
 int debugging = 1;
 #else
-int debugging = 0;
+int debugging = 1;
 #endif /* DEBUG */
 
 static void
