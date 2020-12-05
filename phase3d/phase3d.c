@@ -55,26 +55,35 @@ static void debug3(char *fmt, ...)
     }
 }
 
+typedef struct Block {
+    int track;
+    int sector;
+    int isSwapped;
+} Block;
+
 typedef struct Pages{
     Block *block;
-}Pages;
-
-typedef struct Block{
-    int track;
-    int swap;
-}
+} Pages;
 
 typedef struct Frame{
-    int *pid;
-    int *pages;
-}Frame;
+    int pid;
+    int page;
+    int isBusy;
+} Frame;
 
 static int initialized = 0;
 static SID semSwap;
 static SID semVMStats;
 static Pages *processes;
 static int num_pages;
+static int num_frames;
 static Frame *frame_processes;
+static int sector_size;
+static int num_sectors; // Number of sectors per track
+static int num_tracks;  // Total number of tracks
+static int current_sector;
+static int current_track;
+
 
 /*
  *----------------------------------------------------------------------
@@ -98,6 +107,7 @@ P3SwapInit(int pages, int frames)
         result = P3_ALREADY_INITIALIZED;
     }else{
         num_pages = pages;
+        num_frames = frames;
         // Initializing Semaphores
         char name_swap[P1_MAXNAME + 1];
         strcpy(name_swap,"swap_sem");
@@ -106,22 +116,30 @@ P3SwapInit(int pages, int frames)
         assert(P1_SemCreate(name_swap,1,&semSwap) == P1_SUCCESS);
         assert(P1_SemCreate(name_vm,1,&semVMStats) == P1_SUCCESS);
 
+        // Initializing the disk
+        // P2DiskInit();
+        assert(P2_DiskSize(0, &sector_size, &num_sectors, &num_tracks) == P1_SUCCESS);
+        current_sector = 0;
+        current_track = 0;
+
         int i;
         for(i = 0; i < P1_MAXPROC; i++){
             processes[i].block = malloc(pages * sizeof(Block));
             int j;
             for(j = 0; j < pages; j++){
                 processes[i].block[j].track = -1;
-                processes[i].block[j].swap = 0;
+                processes[i].block[j].swap = FALSE;
+                processes[i].block[j].sector = -1;
             }
         }
 
         // initialize the swap data structures, e.g. the pool of free blocks
-        frame_processes.pid = malloc(sizeof(int) * frames);
-        frame_processes.pages = malloc(sizeof(int) * frames);
+        frame_processes = malloc(sizeof(Frame) * frames);
         for(i = 0; i < frames; i ++){
-            frame_processes.pid[i] = -1;
-            frame_processes.pages[i] = -1;
+            frame_processes[i].pid = -1;
+            frame_processes[i].page = -1;
+            frame_processes[i].isBusy = FALSE;
+
         }
 
         assert(P1_P(semVMStats) == P1_SUCCESS);
@@ -152,16 +170,19 @@ P3SwapShutdown(void)
         result = P3_NOT_INITIALIZED;
     }else{
         // Frame structs
-        free(frame_processes.pid);
-        free(frame_processes.pages);
         int i;
+        for (i=0; i<num_frames; i++) {
+            Frame *ptr = frame_processes + i;
+            free(ptr);
+        }
+
         for(i = 0; i < P1_MAXPROC; i++){
             free(processes[i].block);
         }
         free(processes);
 
         // Free Semaphores
-        assert(P1_SemFree(swap_sem) == P1_SUCCESS);
+        assert(P1_SemFree(semSwap) == P1_SUCCESS);
         assert(P1_SemFree(semVMStats) == P1_SUCCESS);
     }
 
@@ -187,7 +208,7 @@ P3SwapFreeAll(int pid)
 {
     int result = P1_SUCCESS;
 
-    kf(!initialized){
+    if(!initialized){
         result = P3_NOT_INITIALIZED;
     }else{
         /*****************
@@ -197,13 +218,14 @@ P3SwapFreeAll(int pid)
         V(mutex)
 
         *****************/
-        assert(P1_P(swap_sem) === P1_SUCCESS);
+        assert(P1_P(semSwap) == P1_SUCCESS);
         int i;
         for(i = 0; i < num_pages; i++){
             processes[pid].block[i].track = -1;
             processes[pid].block[i].swap = 0;
         }
-        assert(P1_V(swap_sem) == P1_SUCCESS);
+        assert(P1_V(semSwap) == P1_SUCCESS);
+        
     }
     
 
@@ -257,7 +279,40 @@ P3SwapOut(int *frame)
     *frame = target
 
     *****************/
-
+   static int hand = -1;
+   assert(P1_P(semSwap) == P1_SUCCESS);
+   int access; int target;
+   while (TRUE) {
+       hand = (hand + 1) % num_frames;
+       assert(USLOSS_MmuGetAccess(hand, &access) == USLOSS_MMU_OK);
+       if (access != USLOSS_MMU_REF) {
+           target = hand;
+           break;
+       } else {
+           assert(USLOSS_MmuSetAccess(hand, 0) == USLOSS_MMU_OK);
+       }
+   }
+   int pid = frame_processes[target].pid;
+   int page = frame_processes[target].page;
+   // Writing to disk if the frame is dirty
+   if (access == USLOSS_MMU_DIRTY) {
+       void *ptr;
+       assert(P3FrameMap(target, &ptr) == P1_SUCCESS);
+       int sector = processes[pid][page].sector;
+       int track = processes[pid][page].track;
+       assert(P2_DiskWrite(0, track, sector, 1, ptr) == P1_SUCCESS);
+       assert(P3FrameUnmap(target) == P1_SUCCESS);
+   }
+    // setting incore to 0 for the page in the page table
+    USLOSS_PTE *table;
+    assert(P3PageTableGet(pid, &table) == P1_SUCCESS)
+    table[page].incore = 0;
+    table[page].read = 0;
+    table[page].write = 0;
+    assert(USLOSS_MmuSetPageTable(table) == USLOSS_MMU_OK);
+    frame_processes[target].isBusy = TRUE;
+    assert(P1_V(semSwap) == P1_SUCCESS);
+    *frame = target;
     return result;
 }
 /*
@@ -298,6 +353,28 @@ P3SwapIn(int pid, int page, int frame)
     V(mutex)
 
     *****************/
+    assert(P1_P(semSwap) == P1_SUCCESS);
+    if (processes[pid][page].track != -1 && processes[pid][page].sector != -1) {
+        void *ptr;
+        assert(P3FrameMap(frame, ptr) == P1_SUCCESS);
+        assert(P2_DiskRead(0, track, sector, 1, ptr) == P1_SUCCESS);
+        assert(P3FrameUnmap(frame) == P1_SUCCESS);
+    } else {
+        // THIS APPROACH DOESN'T WORK, NEED DATA STRUCTURE TO KEEP TRACK OF FREE
+        // SWAP SPACE
+        current_sector++;
+        if (current_sector == num_sectors) {
+            current_sector = 0;
+            current_track++;
+            if (current_track == num_tracks) {
+                return P3_OUT_OF_SWAP;
+            }
+        }
+        processes[pid][page].track = current_track;
+        processes[pid][page].sector = current_sector;
+        return P3_EMPTY_PAGE;
+    }
 
+    assert(P1_V(semSwap) == P1_SUCCESS);
     return result;
 }
