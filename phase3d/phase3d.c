@@ -71,18 +71,22 @@ typedef struct Frame{
     int isBusy;
 } Frame;
 
+typedef struct Node {
+    Block block;
+    Node *next;
+} Node;
+
 static int initialized = 0;
 static SID semSwap;
 static SID semVMStats;
 static Pages *processes;
+static Node *freeBlocks; // A stack of the free blocks
 static int num_pages;
 static int num_frames;
 static Frame *frame_processes;
 static int sector_size;
 static int num_sectors; // Number of sectors per track
 static int num_tracks;  // Total number of tracks
-static int current_sector;
-static int current_track;
 
 
 /*
@@ -108,6 +112,7 @@ P3SwapInit(int pages, int frames)
     }else{
         num_pages = pages;
         num_frames = frames;
+        freeBlocks = NULL;
         // Initializing Semaphores
         char name_swap[P1_MAXNAME + 1];
         strcpy(name_swap,"swap_sem");
@@ -119,10 +124,18 @@ P3SwapInit(int pages, int frames)
         // Initializing the disk
         // P2DiskInit();
         assert(P2_DiskSize(0, &sector_size, &num_sectors, &num_tracks) == P1_SUCCESS);
-        current_sector = 0;
-        current_track = 0;
-
-        int i;
+        int i; int j;
+        // Giving space for the freeBlocks stack
+        for (i=0; i<num_tracks; i++) {
+            for (j=0; j<num_sectors; j++) {
+                Node node = malloc(sizeof(Node));
+                node.block.sector = j;
+                node.block.track = i;
+                node.block.isSwapped = FALSE;
+                node.next = freeBlocks;
+                freeBlocks = node;
+            }
+        }
         for(i = 0; i < P1_MAXPROC; i++){
             processes[i].block = malloc(pages * sizeof(Block));
             int j;
@@ -221,15 +234,22 @@ P3SwapFreeAll(int pid)
         assert(P1_P(semSwap) == P1_SUCCESS);
         int i;
         for(i = 0; i < num_pages; i++){
-            processes[pid].block[i].track = -1;
-            processes[pid].block[i].swap = 0;
+            if (processes[pid].block[i].track != -1 && processes[pid].block[i].sector != -1) {
+                Node node = malloc(sizeof(Node));
+                node.block.isSwapped = FALSE;
+                node.block.sector = processes[pid].block[i].sector;
+                node.block.track = processes[pid].block[i].track;
+                node.next = freeBlocks;
+                freeBlocks = node;
+                processes[pid].block[i].track = -1;
+                processes[pid].block[i].sector = -1;
+                processes[pid].block[i].isSwapped = FALSE;
+            }
         }
         assert(P1_V(semSwap) == P1_SUCCESS);
         
     }
     
-
-
     return result;
 }
 
@@ -251,8 +271,6 @@ P3SwapFreeAll(int pid)
 int
 P3SwapOut(int *frame) 
 {
-    int result = P1_SUCCESS;
-
     /*****************
 
     NOTE: in the pseudo-code below I used the notation frames[x] to indicate frame x. You 
@@ -279,6 +297,9 @@ P3SwapOut(int *frame)
     *frame = target
 
     *****************/
+   if (!initialized) {
+       return P3_NOT_INITIALIZED;
+   }
    static int hand = -1;
    assert(P1_P(semSwap) == P1_SUCCESS);
    int access; int target;
@@ -313,7 +334,7 @@ P3SwapOut(int *frame)
     frame_processes[target].isBusy = TRUE;
     assert(P1_V(semSwap) == P1_SUCCESS);
     *frame = target;
-    return result;
+    return P1_SUCCESS;
 }
 /*
  *----------------------------------------------------------------------
@@ -353,28 +374,41 @@ P3SwapIn(int pid, int page, int frame)
     V(mutex)
 
     *****************/
+   if (!initialized) {
+       return P3_NOT_INITIALIZED;
+   }
+   if (pid < 0 || pid >= P1_MAX_PROC) {
+       return P1_INVALID_PID;
+   }
+   if (page < 0 || page >= num_pages) {
+       return P1_INVALID_PAGE;
+   }
+   if (frame < 0 || frame >= num_frames) {
+       return P1_INVALID_FRAME;
+   }
+
+   int ret = P1_SUCCESS;
     assert(P1_P(semSwap) == P1_SUCCESS);
     if (processes[pid][page].track != -1 && processes[pid][page].sector != -1) {
         void *ptr;
         assert(P3FrameMap(frame, ptr) == P1_SUCCESS);
-        assert(P2_DiskRead(0, track, sector, 1, ptr) == P1_SUCCESS);
+        assert(P2_DiskRead(0, processes[pid][page].track, processes[pid][page].sector, 1, ptr) == P1_SUCCESS);
         assert(P3FrameUnmap(frame) == P1_SUCCESS);
     } else {
-        // THIS APPROACH DOESN'T WORK, NEED DATA STRUCTURE TO KEEP TRACK OF FREE
-        // SWAP SPACE
-        current_sector++;
-        if (current_sector == num_sectors) {
-            current_sector = 0;
-            current_track++;
-            if (current_track == num_tracks) {
-                return P3_OUT_OF_SWAP;
-            }
+        Node node = freeBlocks;
+        if (node == NULL) {
+            ret = P3_OUT_OF_SWAP;
+        } else {
+            processes[pid][page].track = node.block.track;
+            processes[pid][page].sector = node.block.sector;
+            freeBlocks = freeBlocks->next;
+            free(node);
+            ret = P3_EMPTY_PAGE;
         }
-        processes[pid][page].track = current_track;
-        processes[pid][page].sector = current_sector;
-        return P3_EMPTY_PAGE;
     }
-
+    frame_processes[frame].isBusy = FALSE;
+    frame_processes[frame].pid = pid;
+    frame_processes[frame].page = page;
     assert(P1_V(semSwap) == P1_SUCCESS);
-    return result;
+    return ret;
 }
