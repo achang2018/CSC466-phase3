@@ -73,7 +73,7 @@ typedef struct Frame{
 
 typedef struct Node {
     Block block;
-    Node *next;
+    struct Node *next;
 } Node;
 
 static int initialized = 0;
@@ -123,16 +123,16 @@ P3SwapInit(int pages, int frames)
 
         // Initializing the disk
         // P2DiskInit();
-        assert(P2_DiskSize(0, &sector_size, &num_sectors, &num_tracks) == P1_SUCCESS);
+        assert(P2_DiskSize(1, &sector_size, &num_sectors, &num_tracks) == P1_SUCCESS);
         int i; int j;
         // Giving space for the freeBlocks stack
         for (i=0; i<num_tracks; i++) {
             for (j=0; j<num_sectors; j++) {
-                Node node = malloc(sizeof(Node));
-                node.block.sector = j;
-                node.block.track = i;
-                node.block.isSwapped = FALSE;
-                node.next = freeBlocks;
+                Node *node = malloc(sizeof(Node));
+                node->block.sector = j;
+                node->block.track = i;
+                node->block.isSwapped = FALSE;
+                node->next = freeBlocks;
                 freeBlocks = node;
             }
         }
@@ -141,7 +141,7 @@ P3SwapInit(int pages, int frames)
             int j;
             for(j = 0; j < pages; j++){
                 processes[i].block[j].track = -1;
-                processes[i].block[j].swap = FALSE;
+                processes[i].block[j].isSwapped = FALSE;
                 processes[i].block[j].sector = -1;
             }
         }
@@ -235,11 +235,11 @@ P3SwapFreeAll(int pid)
         int i;
         for(i = 0; i < num_pages; i++){
             if (processes[pid].block[i].track != -1 && processes[pid].block[i].sector != -1) {
-                Node node = malloc(sizeof(Node));
-                node.block.isSwapped = FALSE;
-                node.block.sector = processes[pid].block[i].sector;
-                node.block.track = processes[pid].block[i].track;
-                node.next = freeBlocks;
+                Node *node = malloc(sizeof(Node));
+                node->block.isSwapped = FALSE;
+                node->block.sector = processes[pid].block[i].sector;
+                node->block.track = processes[pid].block[i].track;
+                node->next = freeBlocks;
                 freeBlocks = node;
                 processes[pid].block[i].track = -1;
                 processes[pid].block[i].sector = -1;
@@ -319,14 +319,14 @@ P3SwapOut(int *frame)
    if (access == USLOSS_MMU_DIRTY) {
        void *ptr;
        assert(P3FrameMap(target, &ptr) == P1_SUCCESS);
-       int sector = processes[pid][page].sector;
-       int track = processes[pid][page].track;
-       assert(P2_DiskWrite(0, track, sector, 1, ptr) == P1_SUCCESS);
+       int sector = processes[pid].block[page].sector;
+       int track = processes[pid].block[page].track;
+       assert(P2_DiskWrite(1, track, sector, 1, ptr) == P1_SUCCESS);
        assert(P3FrameUnmap(target) == P1_SUCCESS);
    }
     // setting incore to 0 for the page in the page table
     USLOSS_PTE *table;
-    assert(P3PageTableGet(pid, &table) == P1_SUCCESS)
+    assert(P3PageTableGet(pid, &table) == P1_SUCCESS);
     table[page].incore = 0;
     table[page].read = 0;
     table[page].write = 0;
@@ -357,8 +357,6 @@ P3SwapOut(int *frame)
 int
 P3SwapIn(int pid, int page, int frame)
 {
-    int result = P1_SUCCESS;
-
     /*****************
 
     P(mutex)
@@ -377,30 +375,30 @@ P3SwapIn(int pid, int page, int frame)
    if (!initialized) {
        return P3_NOT_INITIALIZED;
    }
-   if (pid < 0 || pid >= P1_MAX_PROC) {
+   if (pid < 0 || pid >= P1_MAXPROC) {
        return P1_INVALID_PID;
    }
    if (page < 0 || page >= num_pages) {
-       return P1_INVALID_PAGE;
+       return P3_INVALID_PAGE;
    }
    if (frame < 0 || frame >= num_frames) {
-       return P1_INVALID_FRAME;
+       return P3_INVALID_FRAME;
    }
 
    int ret = P1_SUCCESS;
     assert(P1_P(semSwap) == P1_SUCCESS);
-    if (processes[pid][page].track != -1 && processes[pid][page].sector != -1) {
+    if (processes[pid].block[page].track != -1 && processes[pid].block[page].sector != -1) {
         void *ptr;
-        assert(P3FrameMap(frame, ptr) == P1_SUCCESS);
-        assert(P2_DiskRead(0, processes[pid][page].track, processes[pid][page].sector, 1, ptr) == P1_SUCCESS);
+        assert(P3FrameMap(frame, &ptr) == P1_SUCCESS);
+        assert(P2_DiskRead(1, processes[pid].block[page].track, processes[pid].block[page].sector, 1, ptr) == P1_SUCCESS);
         assert(P3FrameUnmap(frame) == P1_SUCCESS);
     } else {
-        Node node = freeBlocks;
+        Node *node = freeBlocks;
         if (node == NULL) {
             ret = P3_OUT_OF_SWAP;
         } else {
-            processes[pid][page].track = node.block.track;
-            processes[pid][page].sector = node.block.sector;
+            processes[pid].block[page].track = node->block.track;
+            processes[pid].block[page].sector = node->block.sector;
             freeBlocks = freeBlocks->next;
             free(node);
             ret = P3_EMPTY_PAGE;
