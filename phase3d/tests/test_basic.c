@@ -44,7 +44,7 @@ static int passed = FALSE;
 #ifdef DEBUG
 static int debugging = 1;
 #else
-static int debugging = 0;
+static int debugging = 1;
 #endif /* DEBUG */
 
 static void
@@ -94,6 +94,7 @@ Child(void *arg)
             assert(rc == P1_SUCCESS);
             page = vmRegion + j * pageSize;
             Debug("Child \"%s\" (%d) reading from page %d @ %p\n", name, pid, j, page);
+            USLOSS_Console("Page %d \n", *name);
             for (int k = 0; k < pageSize; k++) {
                 TEST(page[k], *name);
             }

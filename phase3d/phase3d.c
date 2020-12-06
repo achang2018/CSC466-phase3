@@ -87,6 +87,7 @@ static Frame *frame_processes;
 static int sector_size;
 static int num_sectors; // Number of sectors per track
 static int num_tracks;  // Total number of tracks
+static int sectors_per_page;
 
 
 /*
@@ -105,6 +106,7 @@ static int num_tracks;  // Total number of tracks
 int
 P3SwapInit(int pages, int frames)
 {
+    USLOSS_Console("Swap Init Start\n");
     int result = P1_SUCCESS;
 
     if(initialized){
@@ -122,12 +124,20 @@ P3SwapInit(int pages, int frames)
         assert(P1_SemCreate(name_vm,1,&semVMStats) == P1_SUCCESS);
 
         // Initializing the disk
-        // P2DiskInit();
         assert(P2_DiskSize(1, &sector_size, &num_sectors, &num_tracks) == P1_SUCCESS);
+        int pageSize = USLOSS_MmuPageSize();
+        sectors_per_page = pageSize / sector_size;
+        if (pageSize % sector_size != 0) {
+            sectors_per_page++;
+        }
+        USLOSS_Console("Sectors per page %d and num sectors %d\n", sectors_per_page, num_sectors);
         int i; int j;
+        int startJ = 0;
+        // USLOSS_Console("Creating Free Block Space\n");
         // Giving space for the freeBlocks stack
         for (i=0; i<num_tracks; i++) {
-            for (j=0; j<num_sectors; j++) {
+            for (j=startJ; j<num_sectors; j+=sectors_per_page) {
+                // USLOSS_Console("i %d j %d\n", i, j);
                 Node *node = malloc(sizeof(Node));
                 node->block.sector = j;
                 node->block.track = i;
@@ -135,11 +145,14 @@ P3SwapInit(int pages, int frames)
                 node->next = freeBlocks;
                 freeBlocks = node;
             }
+            startJ = j - num_sectors;
         }
+        USLOSS_Console("Setting up proc ds\n");
+        processes = malloc(P1_MAXPROC * sizeof(Pages));
         for(i = 0; i < P1_MAXPROC; i++){
             processes[i].block = malloc(pages * sizeof(Block));
             int j;
-            for(j = 0; j < pages; j++){
+            for(j = 0; j < pages; j++) {
                 processes[i].block[j].track = -1;
                 processes[i].block[j].isSwapped = FALSE;
                 processes[i].block[j].sector = -1;
@@ -147,6 +160,7 @@ P3SwapInit(int pages, int frames)
         }
 
         // initialize the swap data structures, e.g. the pool of free blocks
+        USLOSS_Console("Initializing frames\n");
         frame_processes = malloc(sizeof(Frame) * frames);
         for(i = 0; i < frames; i ++){
             frame_processes[i].pid = -1;
@@ -159,7 +173,7 @@ P3SwapInit(int pages, int frames)
         assert(P1_V(semVMStats) == P1_SUCCESS);
         initialized = 1;
     }
-
+    USLOSS_Console("SwapInit End\n");
     return result;
 }
 /*
@@ -178,6 +192,7 @@ P3SwapInit(int pages, int frames)
 int
 P3SwapShutdown(void)
 {
+    USLOSS_Console("Swap Shutdown start\n");
     int result = P1_SUCCESS;
     if(!initialized){
         result = P3_NOT_INITIALIZED;
@@ -198,7 +213,7 @@ P3SwapShutdown(void)
         assert(P1_SemFree(semSwap) == P1_SUCCESS);
         assert(P1_SemFree(semVMStats) == P1_SUCCESS);
     }
-
+    USLOSS_Console("Swap Shutdown End\n");
     return result;
 }
 
@@ -297,14 +312,16 @@ P3SwapOut(int *frame)
     *frame = target
 
     *****************/
+   assert(P1_P(semSwap) == P1_SUCCESS);
+   USLOSS_Console("SwapOut Start\n");
    if (!initialized) {
        return P3_NOT_INITIALIZED;
    }
    static int hand = -1;
-   assert(P1_P(semSwap) == P1_SUCCESS);
    int access; int target;
    while (TRUE) {
        hand = (hand + 1) % num_frames;
+       USLOSS_Console("Looking at frame %d\n", hand);
        assert(USLOSS_MmuGetAccess(hand, &access) == USLOSS_MMU_OK);
        if (access != USLOSS_MMU_REF) {
            target = hand;
@@ -317,11 +334,13 @@ P3SwapOut(int *frame)
    int page = frame_processes[target].page;
    // Writing to disk if the frame is dirty
    if (access == USLOSS_MMU_DIRTY) {
+       USLOSS_Console("Swapping Dirty\n");
        void *ptr;
        assert(P3FrameMap(target, &ptr) == P1_SUCCESS);
        int sector = processes[pid].block[page].sector;
        int track = processes[pid].block[page].track;
-       assert(P2_DiskWrite(1, track, sector, 1, ptr) == P1_SUCCESS);
+       USLOSS_Console("Writing for sector %d for track %d\n", sector, track);
+       assert(P2_DiskWrite(1, track, sector, sectors_per_page, ptr) == P1_SUCCESS);
        assert(P3FrameUnmap(target) == P1_SUCCESS);
    }
     // setting incore to 0 for the page in the page table
@@ -330,10 +349,12 @@ P3SwapOut(int *frame)
     table[page].incore = 0;
     table[page].read = 0;
     table[page].write = 0;
+    USLOSS_Console("Setting table\n");
     assert(USLOSS_MmuSetPageTable(table) == USLOSS_MMU_OK);
     frame_processes[target].isBusy = TRUE;
     assert(P1_V(semSwap) == P1_SUCCESS);
     *frame = target;
+    USLOSS_Console("Swap Out End\n");
     return P1_SUCCESS;
 }
 /*
@@ -357,6 +378,7 @@ P3SwapOut(int *frame)
 int
 P3SwapIn(int pid, int page, int frame)
 {
+    USLOSS_Console("SwapIn Start\n");
     /*****************
 
     P(mutex)
@@ -379,9 +401,11 @@ P3SwapIn(int pid, int page, int frame)
        return P1_INVALID_PID;
    }
    if (page < 0 || page >= num_pages) {
+       USLOSS_Console("Invalid page %d\n", page);
        return P3_INVALID_PAGE;
    }
    if (frame < 0 || frame >= num_frames) {
+       USLOSS_Console("Invalid Frame %d\n", frame);
        return P3_INVALID_FRAME;
    }
 
@@ -389,14 +413,25 @@ P3SwapIn(int pid, int page, int frame)
     assert(P1_P(semSwap) == P1_SUCCESS);
     if (processes[pid].block[page].track != -1 && processes[pid].block[page].sector != -1) {
         void *ptr;
+        int pageSize = USLOSS_MmuPageSize();
         assert(P3FrameMap(frame, &ptr) == P1_SUCCESS);
-        assert(P2_DiskRead(1, processes[pid].block[page].track, processes[pid].block[page].sector, 1, ptr) == P1_SUCCESS);
+        USLOSS_Console("Reading for pid %d, track %d and sector %d\n", pid, processes[pid].block[page].track, processes[pid].block[page].sector);
+        char *addr = malloc(pageSize);
+        assert(P2_DiskRead(1, processes[pid].block[page].track, processes[pid].block[page].sector, sectors_per_page, addr) == P1_SUCCESS);
+        int i;
+        for (i=0; i<pageSize; i++) {
+            ((char *)ptr)[i] = addr[i];
+        }
+        free(addr);
         assert(P3FrameUnmap(frame) == P1_SUCCESS);
+        USLOSS_Console("Finished Reading\n");
     } else {
         Node *node = freeBlocks;
         if (node == NULL) {
             ret = P3_OUT_OF_SWAP;
+
         } else {
+            USLOSS_Console("Giving track %d and sector %d to %d\n", node->block.track, node->block.sector, pid);
             processes[pid].block[page].track = node->block.track;
             processes[pid].block[page].sector = node->block.sector;
             freeBlocks = freeBlocks->next;
@@ -407,6 +442,7 @@ P3SwapIn(int pid, int page, int frame)
     frame_processes[frame].isBusy = FALSE;
     frame_processes[frame].pid = pid;
     frame_processes[frame].page = page;
+    USLOSS_Console("SwapIn end\n");
     assert(P1_V(semSwap) == P1_SUCCESS);
     return ret;
 }
